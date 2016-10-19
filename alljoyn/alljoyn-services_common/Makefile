@@ -13,6 +13,7 @@ PKG_TARBALL_VERSION:=$(PKG_VERSION)
 PKG_BUILD_DIR:=$(BUILD_DIR)/alljoyn-services-$(PKG_TARBALL_VERSION)-src
 PKG_SOURCE:=alljoyn-services-$(PKG_TARBALL_VERSION)-src.tar.gz
 PKG_SOURCE_URL:=https://allseenalliance.org/releases/alljoyn/$(PKG_BASE_VERSION)/
+PKG_IREMAP:=0
 
 # SCons supports parallel builds but does not support make's jobserver
 PKG_BUILD_PARALLEL:=$(if $(CONFIG_PKG_BUILD_USE_JOBSERVER),0,1)
