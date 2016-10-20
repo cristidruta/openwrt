@@ -11,8 +11,8 @@ PKG_RELEASE:=0
 include $(INCLUDE_DIR)/package.mk
  
 define Package/$(PKG_NAME)
-    SECTION:=utils
-    CATEGORY:=Utilities
+    SECTION:=iot
+    CATEGORY:=Customer
     DEFAULT:=y
     DEPENDS:=+libuci +libubus +libblobmsg-json +libubox +opkg-customer +libpthread +libcurl \
 		+libstdcpp +mxml \
