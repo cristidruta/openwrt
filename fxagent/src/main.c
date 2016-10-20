@@ -9,6 +9,7 @@
 #include "pthread.h"
 #include "DataConvert.h"
 
+//#define SUPPORT_HIGH_PRIORITY 1
 #define NEED_REGISTER 1
 #define NO_NEED_REGISTER 0
 #define CLOUDC_GET_CONFIG "/etc/config/cloudc"
@@ -123,6 +124,7 @@ int config_init(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+#ifdef SUPPORT_HIGH_PRIORITY
     struct sched_param fxagent_param;
     int policy;
     int max_priority, min_priority;
@@ -141,6 +143,7 @@ int main(int argc, char *argv[])
         cloudc_debug("set fxagent schedule failed : %d", errno);
         return -1;
     }
+#endif
     db_connect();
 
     config_init(argc, argv);

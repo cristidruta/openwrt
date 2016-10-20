@@ -14,7 +14,7 @@ define Package/$(PKG_NAME)
     SECTION:=iot
     CATEGORY:=Customer
     DEFAULT:=y
-    DEPENDS:=+libuci +libubus +libblobmsg-json +libubox +opkg-customer +libpthread +libcurl \
+    DEPENDS:=+libuci +libubus +libblobmsg-json +libubox +libpthread +libcurl \
 		+libstdcpp +mxml \
 		+alljoyn +alljoyn-about +alljoyn-config +alljoyn-controlpanel +alljoyn-services_common +alljoyn-notification \
 		+libsqlite3
