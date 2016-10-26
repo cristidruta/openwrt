@@ -43,10 +43,14 @@
 
 #include "listener.h"
 #include "clients.h"
+#include "controlers.h"
 #include "cfg_parser.h"
 
 int main_loop(options_t* opt, listeners_t* listeners)
 {
+    int ret=-1;
+    int nfds=-1;;
+
   log_printf(INFO, "entering main loop");
 
   int sig_fd = signal_init();
@@ -61,11 +65,18 @@ int main_loop(options_t* opt, listeners_t* listeners)
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
     FD_SET(sig_fd, &readfds);
-    int nfds = sig_fd;
+
+    nfds = sig_fd;
+
     listeners_read_fds(listeners, &readfds, &nfds);
     clients_read_fds(&clients, &readfds, &nfds);
+
+    /* for controlers fd */
+    controlers_read_fds(&readfds, &nfds);
+
     clients_write_fds(&clients, &writefds, &nfds);
-    int ret = select(nfds + 1, &readfds, &writefds, NULL, NULL);
+
+    ret = select(nfds + 1, &readfds, &writefds, NULL, NULL);
     if(ret == -1 && errno != EINTR) {
       log_printf(ERROR, "select returned with error: %s", strerror(errno));
       return_value = -1;
@@ -92,6 +103,8 @@ int main_loop(options_t* opt, listeners_t* listeners)
       }
     }
 
+    controlers_handle_accept(&readfds);
+
     return_value = listeners_handle_accept(listeners, &clients, &readfds);
     if(return_value) break;
 
@@ -99,9 +112,13 @@ int main_loop(options_t* opt, listeners_t* listeners)
     if(return_value) break;
 
     return_value = clients_read(&clients, &readfds);
+
+    /* for read controlers msg */
+    return_value = controlers_read(&readfds);
   }
 
   clients_clear(&clients);
+  ctlers_clean();
   signal_stop();
   return return_value;
 }
@@ -153,6 +170,12 @@ int main(int argc, char* argv[])
 
   log_printf(NOTICE, "just started...");
   options_parse_post(&opt);
+
+  /* add for local ctl interface */
+  if (ctlers_init()<0) {
+      options_clear(&opt);
+      exit(-1);
+  }
 
   listeners_t listeners;
   ret = listeners_init(&listeners);
@@ -226,6 +249,7 @@ int main(int argc, char* argv[])
     fprintf(pid_file, "%d", pid);
     fclose(pid_file);
   }
+
 
   ret = main_loop(&opt, &listeners);
 

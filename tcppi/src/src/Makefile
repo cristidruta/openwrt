@@ -40,6 +40,7 @@ C_OBJS := log.o \
           tcp.o \
           listener.o \
           clients.o \
+          controlers.o \
           tcpproxy.o
 
 C_SRCS := $(C_OBJS:%.o=%.c)
