@@ -2,17 +2,16 @@ include $(TOPDIR)/rules.mk
 
 TARGET_CFLAGS = -g
 DLIB  = -lblobmsg_json -lm -lpthread \
-		-lalljoyn -lalljoyn_about -lalljoyn_config -lalljoyn_controlpanel -lalljoyn_services_common -lalljoyn_notification -lsqlite3 \
+		-lalljoyn -lalljoyn_about -lalljoyn_config -lalljoyn_controlpanel -lalljoyn_services_common -lalljoyn_notification -lsqlite3
 #		-lmxml
 DLIB_FLAGS = 
-OBJ_PATH = ./obj
-OBJ = cJSON.o parser.o sqlite3.o\
+OBJ = cJSON.o parser.o sqlite3.o log.o \
 	  OptParser.o ConfigServiceListenerImpl.o \
-	AboutDataStore.o AsyncSessionJoiner.o \
-	AnnounceHandlerImpl.o CommonSampleUtil.o \
-	SrpKeyXListener.o AboutObjApi.o \
-	CommonBusListener.o SessionListenerImpl.o \
-	ConfigServiceMain.o log.o
+	  AboutDataStore.o AsyncSessionJoiner.o \
+	  AnnounceHandlerImpl.o CommonSampleUtil.o \
+	  SrpKeyXListener.o AboutObjApi.o \
+	  CommonBusListener.o SessionListenerImpl.o \
+	  ConfigServiceMain.o
 
 temp = $(wildcard *~)
 
