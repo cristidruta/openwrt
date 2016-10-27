@@ -14,27 +14,27 @@
 #include "controlers.h"
 #include "log.h"
 
-#define L_CTL_MSG_ADDR "/var/l_ctl_msg_addr"
-#define MAX_LCTLC_ID_LEN 16
-#define MAX_CTL_MSG_LEN 512
+#define PCTL_MSG_ADDR "/var/pctl_msg_addr"
+#define MAX_PCTL_ID_LEN 16
+#define MAX_PCTL_MSG_LEN 512
 
 typedef enum {
-    CTLMSG_REGISTER=0,
-} CtlMsgType;
+    PCTL_MSG_REGISTER=0,
+} PCtlMsgType;
 
-typedef struct ctl_msg_header
+typedef struct pctl_msg_header
 {
-   unsigned char crlId[MAX_LCTLC_ID_LEN];
-   CtlMsgType  type;
+   unsigned char pCtlId[MAX_PCTL_ID_LEN];
+   PCtlMsgType  type;
    unsigned int seq;
-   struct ctl_msg_header *next;
+   struct pctl_msg_header *next;
    unsigned int wordData;
    int dataLength;
-} CtlMsgHeader;
+} PCtlMsgHeader;
 
 typedef struct {
     int fd_;
-    char id[MAX_LCTLC_ID_LEN];
+    char pCtlId[MAX_PCTL_ID_LEN];
 } controler_t;
 
 typedef slist_t controlers_t;
@@ -79,7 +79,7 @@ static int controlers_add(int fd)
 
     int i;
     element->fd_ = fd;
-    memset(element->id, 0, sizeof(element->id));
+    memset(element->pCtlId, 0, sizeof(element->pCtlId));
 
     if(slist_add(list, element) == NULL) {
         close(element->fd_);
@@ -95,7 +95,7 @@ static int initUnixDomainServerSocket()
     struct sockaddr_un serverAddr;
     int fd=-1, rc;
 
-    unlink(L_CTL_MSG_ADDR);
+    unlink(PCTL_MSG_ADDR);
 
 
     if ((fd = socket(AF_LOCAL, SOCK_STREAM, 0)) < 0)
@@ -109,12 +109,12 @@ static int initUnixDomainServerSocket()
      */
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sun_family = AF_LOCAL;
-    strncpy(serverAddr.sun_path, L_CTL_MSG_ADDR, sizeof(serverAddr.sun_path));
+    strncpy(serverAddr.sun_path, PCTL_MSG_ADDR, sizeof(serverAddr.sun_path));
 
     rc = bind(fd, (struct sockaddr *) &serverAddr, sizeof(serverAddr));
     if (rc != 0)
     {
-        printf("bind to %s failed, rc=%d errno=%d", L_CTL_MSG_ADDR, rc, errno);
+        printf("bind to %s failed, rc=%d errno=%d", PCTL_MSG_ADDR, rc, errno);
         close(fd);
         return -1;
     }
@@ -122,7 +122,7 @@ static int initUnixDomainServerSocket()
     rc = listen(fd, 3);
     if (rc != 0)
     {
-        printf("listen to %s failed, rc=%d errno=%d", L_CTL_MSG_ADDR, rc, errno);
+        printf("listen to %s failed, rc=%d errno=%d", PCTL_MSG_ADDR, rc, errno);
         close(fd);
         return -1;
     }
@@ -133,13 +133,49 @@ static int initUnixDomainServerSocket()
     return fd;
 }
 
-static void handle_msg(CtlMsgHeader *msg)
+static void handle_msg(PCtlMsgHeader *msg)
 {
 }
 
-static int ctlmsg_receive(int fd, CtlMsgHeader **buf)
+int pCtlMsg_send(int fd, const PCtlMsgHeader *buf)
 {
-    CtlMsgHeader *msg;
+   unsigned int totalLen;
+   int rc;
+   int ret=0;
+
+   totalLen = sizeof(PCtlMsgHeader) + buf->dataLength;
+
+   rc = write(fd, buf, totalLen);
+   if (rc < 0)
+   {
+      if (errno == EPIPE)
+      {
+         /*
+          * This could happen when smd tries to write to an app that
+          * has exited.  Don't print out a scary error message.
+          * Just return an error code and let upper layer app handle it.
+          */
+         printf("got EPIPE, dest app is dead\r\n");
+         return -2;
+      }
+      else
+      {
+         printf("write failed, errno=%d\r\n", errno);
+         ret = -1;
+      }
+   }
+   else if (rc != (int) totalLen)
+   {
+      printf("unexpected rc %d, expected %u", rc, totalLen);
+      ret = -1;
+   }
+
+   return ret;
+}
+
+static int pCtlMsg_receive(int fd, PCtlMsgHeader **buf)
+{
+    PCtlMsgHeader *msg;
     char *inBuf;
     int rc;
 
@@ -158,33 +194,33 @@ static int ctlmsg_receive(int fd, CtlMsgHeader **buf)
      * Do not try to read more because we might get part of 
      * another message in the TCP socket.
      */
-    msg = (CtlMsgHeader *) malloc(sizeof(CtlMsgHeader) + MAX_CTL_MSG_LEN);
+    msg = (PCtlMsgHeader *) malloc(sizeof(PCtlMsgHeader) + MAX_PCTL_MSG_LEN);
     if (msg == NULL)
     {
         log_printf(ERROR, "alloc of msg header failed");
         return -2;
     }
 
-    rc = read(fd, msg, sizeof(CtlMsgHeader));
+    rc = read(fd, msg, sizeof(PCtlMsgHeader));
     if ((rc == 0) || ((rc == -1) && (errno == 131)))
     {
         /* broken connection */
         free(msg);
         return -3;
     }
-    else if (rc < 0 || rc != sizeof(CtlMsgHeader))
+    else if (rc < 0 || rc != sizeof(PCtlMsgHeader))
     {
         log_printf(ERROR, "bad read, rc=%d errno=%d", rc, errno);
         free(msg);
         return -1;
     }
 
-    if (msg->dataLength > MAX_CTL_MSG_LEN)
+    if (msg->dataLength > MAX_PCTL_MSG_LEN)
     {
-        msg = (CtlMsgHeader *)realloc(msg, sizeof(CtlMsgHeader) + msg->dataLength - MAX_CTL_MSG_LEN);
+        msg = (PCtlMsgHeader *)realloc(msg, sizeof(PCtlMsgHeader) + msg->dataLength - MAX_PCTL_MSG_LEN);
         if (msg == NULL)
         {
-            log_printf(ERROR, "realloc to %d bytes failed", sizeof(CtlMsgHeader) + msg->dataLength);
+            log_printf(ERROR, "realloc to %d bytes failed", sizeof(PCtlMsgHeader) + msg->dataLength);
             free(msg);
             return -2;
         }
@@ -259,14 +295,14 @@ int controlers_read(fd_set* set)
 
     slist_element_t* tmp = list->first_;
     while(tmp) {
-        CtlMsgHeader *msg=NULL;
+        PCtlMsgHeader *msg=NULL;
         controler_t* c = (controler_t*)tmp->data_;
         tmp = tmp->next_;
         if(!FD_ISSET(c->fd_, set)) {
             continue;
         }
 
-        if (ctlmsg_receive(c->fd_, &msg) < 0) {
+        if (pCtlMsg_receive(c->fd_, &msg) < 0) {
             log_printf(INFO, "client %d read error, removing it", c->fd_);
             slist_remove(list, c);
             break;

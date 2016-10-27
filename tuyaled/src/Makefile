@@ -13,7 +13,8 @@ OBJ = cJSON.o parser.o sqlite3.o log.o \
 	  CommonBusListener.o SessionListenerImpl.o \
 	  ConfigServiceMain.o
 
-temp = $(wildcard *~)
+OBJ += pCtlIntf.o
+
 
 all_programs = tuyaled
 all:$(all_programs)
@@ -33,4 +34,4 @@ $(all_programs): $(OBJ)
 	$(TARGET_CXX) $(TARGET_CPPFLAGS) -I. -I./samples_common -DQCC_OS_GROUP_POSIX -DQCC_OS_LINUX -DNEED_DATA_STORE -O2 -g -c $<  
 
 clean:
-	rm -rf $(OBJ_PATH) $(temp) $(all_programs)
+	rm -rf $(OBJ_PATH) $(all_programs)
