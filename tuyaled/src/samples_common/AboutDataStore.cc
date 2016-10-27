@@ -32,6 +32,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+extern "C" 
+{
+    extern int handle_settings(char *newCfg, char *devData);
+}
 
 using namespace ajn;
 using namespace services;
@@ -270,7 +274,19 @@ QStatus AboutDataStore::Update(const char* name, const char* languageTag, const 
         else
         {
             /* step2" update the new value to database and conf.xml */
-            //updateConfigInfo(yval, deviceType, manufacture, moduleNumber, devSn, configName, configValue);
+            if (handle_settings(yval, devDataConf) < 0)
+            {
+                adapt_error("handle_settings(%s) failed.", yval);
+            }
+            /*
+            updateConfigInfo(yval,
+                             deviceType,
+                             manufacture,
+                             moduleNumber,
+                             devSn,
+                             configName,
+                             configValue);
+                             */
         }
     } 
 

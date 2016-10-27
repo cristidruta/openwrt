@@ -1,35 +1,12 @@
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/un.h>
-#include <fcntl.h>
+#include "pCtlIntf.h"
 
 
 #define PCTL_MSG_ADDR "/var/pctl_msg_addr"
-#define MAX_PCTL_ID_LEN 16
-#define MAX_PCTL_MSG_LEN 512
+#define PCTL_CLIENT_ID "tuya_led"
 
-typedef enum {
-    PCTL_MSG_REGISTER=0,
-    PCTL_MSG_DEV_ONLINE,
-} PCtlMsgType;
 
-typedef struct pctl_msg_header
-{
-   unsigned char pCtlId[MAX_PCTL_ID_LEN];
-   PCtlMsgType  type;
-   unsigned int seq;
-   struct pctl_msg_header *next;
-   unsigned int wordData;
-   int dataLength;
-} PCtlMsgHeader;
-
-int g_pCtlFd;
+int g_pCtlFd=-1;
+static unsigned int g_seq=1;
 
 
 int pCtlSock_init()
@@ -75,7 +52,7 @@ int pCtlSock_init()
     return 0;
 }
 
-static int PCtlMsg_receive(int fd, PCtlMsgHeader **buf)
+int PCtlMsg_receive(int fd, PCtlMsgHeader **buf)
 {
     PCtlMsgHeader *msg;
     char *inBuf;
@@ -117,30 +94,33 @@ static int PCtlMsg_receive(int fd, PCtlMsgHeader **buf)
         return -1;
     }
 
-    if (msg->dataLength > MAX_PCTL_MSG_LEN)
+    if (msg->dataLength > 0)
     {
-        msg = (PCtlMsgHeader *)realloc(msg, sizeof(PCtlMsgHeader) + msg->dataLength - MAX_PCTL_MSG_LEN);
-        if (msg == NULL)
+        if (msg->dataLength > MAX_PCTL_MSG_LEN)
         {
-            printf("realloc to %d bytes failed", sizeof(PCtlMsgHeader) + msg->dataLength);
-            free(msg);
-            return -2;
+            msg = (PCtlMsgHeader *)realloc(msg, sizeof(PCtlMsgHeader) + msg->dataLength - MAX_PCTL_MSG_LEN);
+            if (msg == NULL)
+            {
+                printf("realloc to %d bytes failed", sizeof(PCtlMsgHeader) + msg->dataLength);
+                free(msg);
+                return -2;
+            }
         }
-    }
 
-    /* there is additional data in the message */
-    inBuf = (char *) (msg + 1);
-    rc = read(fd, inBuf, msg->dataLength);
-    if (rc <= 0)
-    {
-        printf("bad data read, rc=%d errno=%d", rc, errno);
-        free(msg);
-        return -1;
-    }
-    else if (rc < msg->dataLength) {
-        printf("bad data read, rc=%d expected=%d", rc, msg->dataLength);
-        free(msg);
-        return -1;
+        /* there is additional data in the message */
+        inBuf = (char *) (msg + 1);
+        rc = read(fd, inBuf, msg->dataLength);
+        if (rc <= 0)
+        {
+            printf("bad data read, rc=%d errno=%d", rc, errno);
+            free(msg);
+            return -1;
+        }
+        else if (rc < msg->dataLength) {
+            printf("bad data read, rc=%d expected=%d", rc, msg->dataLength);
+            free(msg);
+            return -1;
+        }
     }
 
     *buf = msg;
@@ -148,15 +128,18 @@ static int PCtlMsg_receive(int fd, PCtlMsgHeader **buf)
     return 0;
 }
 
-int PCtlMsg_send(int fd, const PCtlMsgHeader *buf)
+int PCtlMsg_send(PCtlMsgHeader *buf)
 {
    unsigned int totalLen;
    int rc;
    int ret=0;
 
+   strcpy(buf->pCtlId, PCTL_CLIENT_ID);
+   buf->seq=g_seq++;
+
    totalLen = sizeof(PCtlMsgHeader) + buf->dataLength;
 
-   rc = write(fd, buf, totalLen);
+   rc = write(g_pCtlFd, buf, totalLen);
    if (rc < 0)
    {
       if (errno == EPIPE)
@@ -179,6 +162,27 @@ int PCtlMsg_send(int fd, const PCtlMsgHeader *buf)
    return ret;
 }
 
+int pCtlIntf_init()
+{
+    int ret=-1;
+    PCtlMsgHeader msg;
+
+    if ((ret=pCtlSock_init()) < 0)
+    {
+        printf("pCtlSock_init failed!\r\n");
+    }
+
+    memset(&msg, 0, sizeof(PCtlMsgHeader));
+    msg.type = PCTL_MSG_REGISTER;
+
+    if ((ret=PCtlMsg_send(&msg)) < 0) {
+        pctl_error("PCtlMsg_send() failed! ret=%d\r\n", ret);
+    }
+
+    return ret;
+}
+
+#if 0
 void readMsgFromPCtl(void)
 {
     PCtlMsgHeader *msg=NULL;
@@ -189,6 +193,7 @@ void readMsgFromPCtl(void)
         switch(msg->type)
         {
             case PCTL_MSG_DEV_ONLINE:
+                devOnlineHandle();
                 break;
 
             default:
@@ -202,17 +207,9 @@ void readMsgFromPCtl(void)
 
     return;
 }
+#endif
 
-int pCtlIntf_init()
-{
-    int ret=-1;
-    if ((ret=pCtlSock_init()) < 0)
-    {
-        printf("pCtlSock_init failed!\r\n");
-    }
-    return ret;
-}
-
+#if 0
 int pCtlIntf_loop()
 {
     int max_fd=g_pCtlFd;
@@ -233,7 +230,7 @@ int pCtlIntf_loop()
         nready = select(max_fd+1, &rset, NULL, NULL, NULL);
         if (nready == -1)
         {
-            printf("error on select, errno=%d\r\n", errno);
+            pctl_error("error on select, errno=%d\r\n", errno);
             usleep(100);
             continue;
         }
@@ -245,3 +242,4 @@ int pCtlIntf_loop()
 
     return 0;
 }
+#endif

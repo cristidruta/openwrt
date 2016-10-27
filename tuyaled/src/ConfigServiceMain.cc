@@ -45,11 +45,17 @@
 
 #define MAX_CONFNAME_LEN 256 
 
+#include "pCtlIntf.h"
+
 extern "C" 
 {
     extern int sqlModuleInit();
     extern int getDevStsByDevSn(char *manufacture, char *devSn);
     extern int sqlUpdateDevData(char *manufacture, char *sn, char *intfName, char *objPath, char *moduleNumber, char *devType, char *devData);
+
+    extern int g_pCtlFd;
+    extern int pCtlIntf_init();
+    extern int PCtlMsg_receive(int fd, PCtlMsgHeader **buf);
 }
 
 using namespace ajn;
@@ -317,6 +323,64 @@ int setHighPriority()
     return 0;
 }
 
+void readMsgFromPCtl(void)
+{
+    PCtlMsgHeader *msg=NULL;
+    int ret=-1;
+
+    while ((ret=PCtlMsg_receive(g_pCtlFd, &msg)) == 0)
+    {
+        switch(msg->type)
+        {
+            case PCTL_MSG_DEV_ONLINE:
+                devOnlineHandle();
+                break;
+
+            default:
+                adapt_error("unrecognized msg 0x%x\r\n", msg->type);
+                break;
+        }
+
+        free(msg);
+        msg=NULL;
+    }
+
+    return;
+}
+
+int pCtlIntf_loop()
+{
+    int max_fd=g_pCtlFd;
+    int nready;
+    int ret=0;
+    fd_set rset;
+
+    /* detach from the terminal so we don't catch the user typing control-c.
+    if (setsid() == -1)
+    {
+        printf("Could not detach from terminal");
+    } */
+
+    for (;;) {
+        FD_ZERO(&rset);
+        FD_SET(g_pCtlFd,&rset);
+
+        nready = select(max_fd+1, &rset, NULL, NULL, NULL);
+        if (nready == -1)
+        {
+            adapt_error("error on select, errno=%d\r\n", errno);
+            usleep(100);
+            continue;
+        }
+
+        if (FD_ISSET(g_pCtlFd, &rset)) {
+            readMsgFromPCtl();
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char**argv, char**envArg)
 {
     QStatus status = ER_OK;
@@ -393,9 +457,15 @@ start:
     }
 
 
-    devOnlineHandle();
+    /*devOnlineHandle();*/
 
-    WaitForSigInt();
+    /*WaitForSigInt();*/
+    if (pCtlIntf_init() < 0) {
+        adapt_error("pCtlIntf_init() failed!");
+        return -1;
+    }
+
+    pCtlIntf_loop();
 
     cleanup();
 

@@ -13,7 +13,7 @@ OBJ = cJSON.o parser.o sqlite3.o log.o \
 	  CommonBusListener.o SessionListenerImpl.o \
 	  ConfigServiceMain.o
 
-OBJ += pCtlIntf.o
+OBJ += pCtlIntf.o devImpl.o
 
 
 all_programs = tuyaled

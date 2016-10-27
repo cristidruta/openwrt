@@ -20,6 +20,8 @@
 
 typedef enum {
     PCTL_MSG_REGISTER=0,
+    PCTL_MSG_DEV_ONLINE,
+    PCTL_MSG_DEV_SET,
 } PCtlMsgType;
 
 typedef struct pctl_msg_header
@@ -35,12 +37,17 @@ typedef struct pctl_msg_header
 typedef struct {
     int fd_;
     char pCtlId[MAX_PCTL_ID_LEN];
+    unsigned int seq;
 } controler_t;
 
 typedef slist_t controlers_t;
 
 static int ctlListenFd=-1;
 static controlers_t controlers;
+
+static void handle_register(controler_t *c, PCtlMsgHeader *msg);
+static void handle_dev_set(controler_t *c, PCtlMsgHeader *msg);
+
 
 static void controlers_delete_element(void* e)
 {
@@ -133,19 +140,17 @@ static int initUnixDomainServerSocket()
     return fd;
 }
 
-static void handle_msg(PCtlMsgHeader *msg)
-{
-}
-
-int pCtlMsg_send(int fd, const PCtlMsgHeader *buf)
+int pCtlMsg_send(controler_t *c, PCtlMsgHeader *buf)
 {
    unsigned int totalLen;
    int rc;
    int ret=0;
 
+   strcpy(buf->pCtlId, c->pCtlId);
+   buf->seq=c->seq++;
    totalLen = sizeof(PCtlMsgHeader) + buf->dataLength;
 
-   rc = write(fd, buf, totalLen);
+   rc = write(c->fd_, buf, totalLen);
    if (rc < 0)
    {
       if (errno == EPIPE)
@@ -215,35 +220,56 @@ static int pCtlMsg_receive(int fd, PCtlMsgHeader **buf)
         return -1;
     }
 
-    if (msg->dataLength > MAX_PCTL_MSG_LEN)
+    if (msg->dataLength > 0)
     {
-        msg = (PCtlMsgHeader *)realloc(msg, sizeof(PCtlMsgHeader) + msg->dataLength - MAX_PCTL_MSG_LEN);
-        if (msg == NULL)
+        if (msg->dataLength > MAX_PCTL_MSG_LEN)
         {
-            log_printf(ERROR, "realloc to %d bytes failed", sizeof(PCtlMsgHeader) + msg->dataLength);
-            free(msg);
-            return -2;
+            msg = (PCtlMsgHeader *)realloc(msg, sizeof(PCtlMsgHeader) + msg->dataLength - MAX_PCTL_MSG_LEN);
+            if (msg == NULL)
+            {
+                log_printf(ERROR, "realloc to %d bytes failed", sizeof(PCtlMsgHeader) + msg->dataLength);
+                free(msg);
+                return -2;
+            }
         }
-    }
 
-    /* there is additional data in the message */
-    inBuf = (char *) (msg + 1);
-    rc = read(fd, inBuf, msg->dataLength);
-    if (rc <= 0)
-    {
-        log_printf(ERROR, "bad data read, rc=%d errno=%d", rc, errno);
-        free(msg);
-        return -1;
-    }
-    else if (rc < msg->dataLength) {
-        log_printf(ERROR, "bad data read, rc=%d expected=%d", rc, msg->dataLength);
-        free(msg);
-        return -1;
+        /* there is additional data in the message */
+        inBuf = (char *) (msg + 1);
+        rc = read(fd, inBuf, msg->dataLength);
+        if (rc <= 0)
+        {
+            log_printf(ERROR, "bad data read, rc=%d errno=%d", rc, errno);
+            free(msg);
+            return -1;
+        }
+        else if (rc < msg->dataLength) {
+            log_printf(ERROR, "bad data read, rc=%d expected=%d", rc, msg->dataLength);
+            free(msg);
+            return -1;
+        }
     }
 
     *buf = msg;
 
     return 0;
+}
+
+
+static void handle_msg(controler_t *c, PCtlMsgHeader *msg)
+{
+    switch(msg->type) 
+    {
+        case PCTL_MSG_REGISTER:
+            handle_register(c, msg);
+            break;
+
+        case PCTL_MSG_DEV_SET:
+            handle_dev_set(c, msg);
+            break;
+
+        default:
+            break;
+    }
 }
 
 void controlers_read_fds(fd_set* set, int* max_fd)
@@ -308,7 +334,7 @@ int controlers_read(fd_set* set)
             break;
         }
 
-        handle_msg(msg);
+        handle_msg(c, msg);
 
         free(msg);
     }
@@ -325,18 +351,48 @@ int ctlers_init()
 {
     if (controlers_init(&controlers) < 0)
     {
+        printf("controlers_init failed!\r\n");
         return -1;
     }
 
     if ((ctlListenFd=initUnixDomainServerSocket()) < 0)
     {
+        printf("initUnixDomainServerSocket failed!\r\n");
         return -1;
     }
 
+    printf("ctlers_init successful!\r\n");
     return ctlListenFd;
 }
 
 void ctlers_clean()
 {
     controlers_clear(&controlers);
+}
+
+
+
+static void handle_register(controler_t *c, PCtlMsgHeader *msg)
+{
+    PCtlMsgHeader rsp;
+
+    strcpy(c->pCtlId, msg->pCtlId);
+
+    system("iptables -t nat -D PREROUTING -p tcp --dport 1883 -j DNAT --to-destination 192.168.1.1:1883");
+    system("iptables -t nat -A PREROUTING -p tcp --dport 1883 -j DNAT --to-destination 192.168.1.1:1883");
+
+    memset(&rsp, 0, sizeof(PCtlMsgHeader));
+    rsp.type=PCTL_MSG_DEV_ONLINE;
+    pCtlMsg_send(c->fd_, &rsp);
+}
+
+
+static void handle_dev_set(controler_t *c, PCtlMsgHeader *msg)
+{
+    //clients_write_buffer(&clients, msg+1, msg->dataLength);
+    //PCtlMsgHeader rsp;
+
+    //memset(&rsp, 0, sizeof(PCtlMsgHeader));
+    //rsp.type=PCTL_MSG_DEV_ONLINE;
+    //pCtlMsg_send(c->fd_, &rsp);
 }
