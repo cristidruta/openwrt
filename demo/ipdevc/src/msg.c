@@ -42,7 +42,7 @@ int devMsg_initSocket(char *srvIp, char *port)
         return -1;
     }
 
-    printf("msg socket is ready (fd=%d)\r\n", sock);
+    printf("client socket is ready: fd=%d.\r\n", sock);
 
     g_fd = sock;
 
@@ -149,7 +149,7 @@ int devMsg_send(DevMsgHeader *buf)
       }
       else
       {
-         printf("write failed, err=%d\r\n", strerror(errno));
+         printf("write failed, err=%s\r\n", strerror(errno));
          ret = -1;
       }
    }

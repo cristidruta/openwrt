@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -10,13 +11,42 @@
 extern void sendMsg_devOnline();
 extern void message_handle(int fd);
 
-void main()
+#define MAX_IP_LEN 16
+#define MAX_PORT_LEN 6
+char server[MAX_IP_LEN]="127.0.0.1";
+char port[MAX_PORT_LEN]="9999";
+
+static void get_config(int argc, char *argv[])
+{
+    char tmpStr[128]={0};
+    char *tmpIp=NULL, *tmpPort=NULL;
+
+    if (argc < 1)
+    {
+        printf("usage: ipdevc ip:port\r\n");
+        return;
+    }
+
+    strncpy(tmpStr, argv[1], sizeof(tmpStr) - 1 );
+    tmpIp = strtok(tmpStr,":");
+    tmpPort = strtok(NULL, ":");
+
+    if((NULL != tmpIp) && (NULL != tmpPort))
+    {
+        strncpy(server, tmpIp, MAX_IP_LEN-1);
+        strncpy(port, tmpPort, MAX_PORT_LEN-1);
+    }
+
+    return;
+}
+
+void main(int argc, char *argv[])
 {
     int fd=-1, maxFd=-1;
     int ret=-1;
     fd_set readfds;
-    char *server="127.0.0.1";
-    char *port="9999";
+
+    get_config(argc, argv);
 
     if((fd=devMsg_initSocket(server, port)) < 0)
     {
