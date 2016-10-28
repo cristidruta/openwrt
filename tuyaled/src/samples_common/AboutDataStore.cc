@@ -34,7 +34,9 @@
 
 extern "C" 
 {
+#ifdef TCP_PROXY_CTL_INTF
     extern int handle_settings(char *newCfg, char *devData);
+#endif
 }
 
 using namespace ajn;
@@ -274,10 +276,12 @@ QStatus AboutDataStore::Update(const char* name, const char* languageTag, const 
         else
         {
             /* step2" update the new value to database and conf.xml */
+#ifdef TCP_PROXY_CTL_INTF
             if (handle_settings(yval, devDataConf) < 0)
             {
                 adapt_error("handle_settings(%s) failed.", yval);
             }
+#endif
             /*
             updateConfigInfo(yval,
                              deviceType,

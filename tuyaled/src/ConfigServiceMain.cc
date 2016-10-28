@@ -53,9 +53,11 @@ extern "C"
     extern int getDevStsByDevSn(char *manufacture, char *devSn);
     extern int sqlUpdateDevData(char *manufacture, char *sn, char *intfName, char *objPath, char *moduleNumber, char *devType, char *devData);
 
+#ifdef TCP_PROXY_CTL_INTF
     extern int g_pCtlFd;
     extern int pCtlIntf_init();
     extern int PCtlMsg_receive(int fd, PCtlMsgHeader **buf);
+#endif
 }
 
 using namespace ajn;
@@ -323,6 +325,7 @@ int setHighPriority()
     return 0;
 }
 
+#ifdef TCP_PROXY_CTL_INTF
 void readMsgFromPCtl(void)
 {
     PCtlMsgHeader *msg=NULL;
@@ -380,6 +383,7 @@ int pCtlIntf_loop()
 
     return 0;
 }
+#endif
 
 int main(int argc, char**argv, char**envArg)
 {
@@ -460,12 +464,14 @@ start:
     /*devOnlineHandle();*/
 
     /*WaitForSigInt();*/
+#ifdef TCP_PROXY_CTL_INTF
     if (pCtlIntf_init() < 0) {
         adapt_error("pCtlIntf_init() failed!");
         return -1;
     }
 
     pCtlIntf_loop();
+#endif
 
     cleanup();
 

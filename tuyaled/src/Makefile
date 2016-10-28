@@ -13,7 +13,14 @@ OBJ = cJSON.o parser.o sqlite3.o log.o \
 	  CommonBusListener.o SessionListenerImpl.o \
 	  ConfigServiceMain.o
 
-OBJ += pCtlIntf.o devImpl.o
+#TARGET_CPPFLAGS += -DTCP_PROXY_CTL_INTF
+#OBJ += pCtlIntf.o devImpl.o
+
+TARGET_CFLAGS += -DIP_DEV_CTL_SERVER
+OBJ += devMgmt.o msgHandle.o \
+	   msg.o clients.o slist.o
+TARGET_CFLAGS += -I ./dev_impl
+
 
 
 all_programs = tuyaled
@@ -25,6 +32,9 @@ $(all_programs): $(OBJ)
 	$(TARGET_CXX) $(TARGET_LDFLAGS) $(TARGET_CPPFLAGS) $(DLIB_FLAGS) $(DLIB) $^ -o $@ 
 
 %.o:%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c $<  
+
+%.o:dev_impl/%.c
 	$(TARGET_CC) $(TARGET_CFLAGS) -c $<  
 
 %.o:%.cc
