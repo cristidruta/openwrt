@@ -8,23 +8,6 @@
 #include <stdio.h>
 #include <errno.h>
 
-#define MAX_MANUFACTURE_LEN 16
-#define MAX_MANUFACTURESN_LEN 256
-
-typedef enum {
-    DEV_MSG_DEV_ONLINE=0,
-} DevMsgType;
-
-typedef struct dev_msg_header
-{
-   DevMsgType  type;
-   unsigned int clientId;
-   unsigned int seq;
-   unsigned int wordData;
-   int dataLength;
-} DevMsgHeader;
-
-
 struct slist_element_struct {
     void* data_;
     struct slist_element_struct* next_;

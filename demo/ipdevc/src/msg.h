@@ -1,5 +1,6 @@
 #ifndef __DEV_MSG_H__
 #define __DEV_MSG_H__
+
 typedef enum {
     DEV_MSG_DEV_ONLINE=0,
     DEV_MSG_SET,
@@ -39,9 +40,9 @@ typedef struct {
     char url[MAX_URL_LEN];
 } Msg_FwUpgrade;
 
-
-/* fixed part, do not change */
-int devMsg_initServerSocket(unsigned int port);
+/* fix part, do not change */
+int devMsg_initSocket(char *srvIp, char *port);
 int devMsg_receive(int fd, DevMsgHeader **buf);
-int devMsg_send(client_t *c, DevMsgHeader *buf);
+int devMsg_send(DevMsgHeader *buf);
+void devMsp_setClientId(unsigned clientId);
 #endif

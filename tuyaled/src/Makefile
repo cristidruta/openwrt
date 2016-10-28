@@ -17,6 +17,7 @@ OBJ = cJSON.o parser.o sqlite3.o log.o \
 #OBJ += pCtlIntf.o devImpl.o
 
 TARGET_CFLAGS += -DIP_DEV_CTL_SERVER
+TARGET_CPPFLAGS += -DIP_DEV_CTL_SERVER
 OBJ += devMgmt.o msgHandle.o \
 	   msg.o clients.o slist.o
 TARGET_CFLAGS += -I ./dev_impl

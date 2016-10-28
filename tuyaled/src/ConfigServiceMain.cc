@@ -58,6 +58,10 @@ extern "C"
     extern int pCtlIntf_init();
     extern int PCtlMsg_receive(int fd, PCtlMsgHeader **buf);
 #endif
+#ifdef IP_DEV_CTL_SERVER
+    extern int devMgmt_init();
+    extern void devMgmt_loop();
+#endif
 }
 
 using namespace ajn;
@@ -471,6 +475,15 @@ start:
     }
 
     pCtlIntf_loop();
+#endif
+
+#ifdef IP_DEV_CTL_SERVER
+    if (devMgmt_init() < 0) {
+        adapt_error("devMgmt_init() failed!");
+        return -1;
+    }
+
+    devMgmt_loop();
 #endif
 
     cleanup();

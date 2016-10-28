@@ -1,4 +1,8 @@
-#include "datatypes.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <arpa/inet.h>
@@ -7,53 +11,42 @@
 
 #define MAX_DEV_MSG_LEN 512
 
-int devMsg_initServerSocket(unsigned int port)
+static unsigned int g_seq=1;
+static unsigned int g_clientId=0;
+static int g_fd=-1;
+
+void devMsp_setClientId(unsigned clientId)
+{
+    g_clientId = clientId;
+}
+
+int devMsg_initSocket(char *srvIp, char *port)
 {
     struct sockaddr_in server;
-    int fd=-1, rc;
-    int i=1;
+    int sock=-1, rc;
 
-    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if ((sock=socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         printf("Could not create socket");
         return -1;
     }
 
-    /*
-     * Bind my server address and listen.
-     */
     memset(&server, 0, sizeof(server));
     server.sin_family = AF_INET;
-    server.sin_addr.s_addr = htonl(INADDR_ANY);
-    server.sin_port = htons(port);
+    server.sin_addr.s_addr = inet_addr(srvIp);
+    server.sin_port = htons(atoi(port));
 
-    fcntl(fd, F_SETFD, 1);
-
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&i, sizeof(i)) < 0)
+    if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0)
     {
-        printf("setsockopt failed! %s\r\n", strerror(errno));
+        printf("connect to %s:%s failed, err=%s\r\n", srvIp, port, strerror(errno));
         return -1;
     }
 
-    rc = bind(fd, (struct sockaddr *) &server, sizeof(server));
-    if (rc != 0)
-    {
-        printf("bind to port %d failed, rc=%d errno=%d\r\n", port, rc, errno);
-        close(fd);
-        return -1;
-    }
+    printf("msg socket is ready (fd=%d)\r\n", sock);
 
-    rc = listen(fd, 10);
-    if (rc != 0)
-    {
-        printf("listen to port %s failed, rc=%d errno=%d\r\n", port, rc, errno);
-        close(fd);
-        return -1;
-    }
+    g_fd = sock;
 
-    printf("server socket opened and ready (fd=%d)\r\n", fd);
-
-    return fd;
+    return sock;
 }
 
 int devMsg_receive(int fd, DevMsgHeader **buf)
@@ -84,7 +77,8 @@ int devMsg_receive(int fd, DevMsgHeader **buf)
         return -2;
     }
 
-    rc = read(fd, msg, sizeof(DevMsgHeader));
+    //rc = read(fd, msg, sizeof(DevMsgHeader));
+    rc = recv(fd, msg, sizeof(DevMsgHeader), 0);
     if ((rc == 0) || ((rc == -1) && (errno == 131)))
     {
         /* broken connection */
@@ -113,7 +107,8 @@ int devMsg_receive(int fd, DevMsgHeader **buf)
 
         /* there is additional data in the message */
         inBuf = (char *) (msg + 1);
-        rc = read(fd, inBuf, msg->dataLength);
+        //rc = read(fd, inBuf, msg->dataLength);
+        rc = recv(fd, inBuf, msg->dataLength, 0);
         if (rc <= 0)
         {
             printf("bad data read, rc=%d errno=%d\r\n", rc, errno);
@@ -132,18 +127,19 @@ int devMsg_receive(int fd, DevMsgHeader **buf)
     return 0;
 }
 
-int devMsg_send(client_t *c, DevMsgHeader *buf)
+int devMsg_send(DevMsgHeader *buf)
 {
    unsigned int totalLen;
    int rc;
    int ret=0;
 
-   buf->clientId    = c->clientId;
-   buf->seq         = c->seq++;
+   buf->clientId    = g_clientId;
+   buf->seq         = g_seq++;
 
    totalLen = sizeof(DevMsgHeader) + buf->dataLength;
 
-   rc = write(c->fd_, buf, totalLen);
+   //rc = write(g_fd, buf, totalLen);
+   rc = send(g_fd, buf, totalLen, 0);
    if (rc < 0)
    {
       if (errno == EPIPE)
@@ -153,7 +149,7 @@ int devMsg_send(client_t *c, DevMsgHeader *buf)
       }
       else
       {
-         printf("write failed, errno=%d\r\n", errno);
+         printf("write failed, err=%d\r\n", strerror(errno));
          ret = -1;
       }
    }

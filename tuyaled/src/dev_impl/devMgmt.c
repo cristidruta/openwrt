@@ -10,29 +10,32 @@ clients_t clients;
 void devMgmt_clean();
 void devMgmt_loop()
 {
-    int nfds=g_listenFd;;
-    int ret=-1;
+    fd_set readfds;
+    int nfds=g_listenFd;
+    int ret=0;
 
-    while(!ret) {
-        fd_set readfds;
+    while(1) {
         FD_ZERO(&readfds);
+        FD_SET(g_listenFd, &readfds);
+        nfds=g_listenFd;
 
         clients_read_fds(&clients, &readfds, &nfds);
 
-        ret = select(nfds + 1, &readfds, NULL, NULL, NULL);
-        if(ret == -1 && errno != EINTR) {
-            printf("select returned with error: %s", strerror(errno));
-            ret = -1;
+        ret = select(nfds+1, &readfds, NULL, NULL, NULL);
+        if (ret == -1) {
+            printf("select returned with error: %s\r\n", strerror(errno));
             break;
         }
 
-        if(!ret || ret == -1)
-            continue;
+        if ((ret=clients_handle_accept(g_listenFd, &clients, &readfds)) != 0)
+        {
+            printf("clients_handle_accept error, break\r\n");
+        }
 
-        ret = clients_handle_accept(g_listenFd, &clients, &readfds);
-        if(ret) break;
-
-        ret = clients_read(&clients, &readfds);
+        if ((ret=clients_read(&clients, &readfds)) != 0)
+        {
+            printf("clients_read error, break\r\n");
+        }
     }
 
     devMgmt_clean();
