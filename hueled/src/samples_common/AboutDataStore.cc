@@ -280,113 +280,44 @@ QStatus AboutDataStore::Update(const char* name, const char* languageTag, const 
         }
         else
         {
-            adapt_debug("update the conf in deviceinfo");
             char devSn[MAX_DEVICESN_LEN] = {0};
             char *FmanufactureSN = "00:17:88:01:02:31:a5:ed-0b";
             char *SmanufactureSN = "00:17:88:01:02:31:d6:2c-0b";
 
+            adapt_debug("update the conf in deviceinfo");
+
             parseManufactureSN(devDataConf,devSn);
             if (yval != NULL)
             {
+                int ledNo = 1;
+                char ledState[16]={0};
+                char power[16]={0};
+                char cmd[512]={0};
+                char *ledCmdFmt="curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":%s}' http://192.168.1.174/api/8U4yimTSe3jv0zBDhw7XwrIwN495AKVWW2RgdFRM/lights/%d/state &";
+
                 if (0 == strcmp(devSn, FmanufactureSN)){
-                    char cmd[512] = {0};
-                    char power[MAX_POWER_LEN] = {0};
-                    parseDevPower(yval, power);
-                    if (strcmp(power, "1") == 0)
-                    {
-                        adapt_debug("Use cmd to call the Philips led!");
-                        snprintf(cmd, sizeof(cmd), "curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":true}' http://192.168.1.174/api/8U4yimTSe3jv0zBDhw7XwrIwN495AKVWW2RgdFRM/lights/1/state &");
-                        std::cout << "cmd = " << cmd << std::endl;
-                        system(cmd);
-                        adapt_debug("config Philips end!\n");
-                    }
-                    else if (strcmp(power, "0") == 0)
-                    {
-                        adapt_debug("Use cmd to call the Philips led!");
-                        snprintf(cmd, sizeof(cmd), "curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":false}' http://192.168.1.174/api/8U4yimTSe3jv0zBDhw7XwrIwN495AKVWW2RgdFRM/lights/1/state &");
-                        std::cout << "cmd = " << cmd << std::endl;
-                        system(cmd);
-                        adapt_debug("config Philips end!\n");
-                    }
+                    ledNo = 1;
                 }
                 else if (0 == strcmp(devSn, SmanufactureSN)){
-                    char cmd[512] = {0};
-                    char power[MAX_POWER_LEN] = {0};
-                    parseDevPower(yval, power);
-                    if (strcmp(power, "1") == 0)
-                    {
-                        adapt_debug("Use cmd to call the Philips led!");
-                        snprintf(cmd, sizeof(cmd), "curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":true}' http://192.168.1.174/api/8U4yimTSe3jv0zBDhw7XwrIwN495AKVWW2RgdFRM/lights/2/state &");
-                        std::cout << "cmd = " << cmd << std::endl;
-                        system(cmd);
-                        adapt_debug("config Philips end!\n");
-                    }
-                    else if (strcmp(power, "0") == 0)
-                    {
-                        adapt_debug("Use cmd to call the Philips led!");
-                        snprintf(cmd, sizeof(cmd), "curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":false}' http://192.168.1.174/api/8U4yimTSe3jv0zBDhw7XwrIwN495AKVWW2RgdFRM/lights/2/state &");
-                        std::cout << "cmd = " << cmd << std::endl;
-                        system(cmd);
-                        adapt_debug("config Philips end!\n");
-                    }
+                    ledNo = 2;
                 }
-                
+
+                parseDevPower(yval, power);
+                if (strcmp(power, "1") == 0) {
+                    strcpy(ledState, "true");
+                }
+                else if (strcmp(power, "0") == 0) {
+                    strcpy(ledState, "false");
+                }
+
+                adapt_debug("Use cmd to call the Philips led!");
+                snprintf(cmd, sizeof(cmd), ledCmdFmt, ledState, ledNo);
+                std::cout << "cmd = " << cmd << std::endl;
+                system(cmd);
+                adapt_debug("config Philips end!\n");
             }
-        
-            /* step2" update the new value to database and conf.xml */
-//#ifdef TCP_PROXY_CTL_INTF
-/*
-            char deviceType[MAX_DEVICETYPE_LEN] = {0};
-            char manufacture[MAX_MANUFACTURE_LEN] = {0};
-            char moduleNumber[MAX_MODULENUMBER_LEN] = {0};
-            char devSn[MAX_DEVICESN_LEN] = {0};
-            char configName[MAX_CONFIGNAME_LEN] = {0};
-            char configValue[MAX_CONFIGVALUE_LEN] = {0};
-            char transportType[MAX_TRANSPORT_LEN] = {0};
-
-            char *cmd = (char *)malloc(MAX_SENDBUF_LEN);
-            char *sendBuf = (char *)malloc(MAX_SENDBUF_LEN);
-
-            memset(cmd, 0, MAX_SENDBUF_LEN);
-            memset(sendBuf, 0, MAX_SENDBUF_LEN);
-
-            parseDevOnlineBuf(devDataConf, manufacture, moduleNumber, deviceType, devSn, transportType);
-            /* send to service to make smart device effect */
-            
-           // buildSendBuf(sendBuf, devSn, yval, transportType);
-
-           // send_configMsg(sendBuf, manufacture, devSn);
-            /*            {
-                adapt_error("handle_settings(%s) failed.", yval);
-            }
-//#endif
-            /*
-            updateConfigInfo(yval,
-                             deviceType,
-                             manufacture,
-                             moduleNumber,
-                             devSn,
-                             configName,
-                             configValue);
-                             */
         }
     } 
-
-    if (status == ER_OK) {
-        //Generate xml
-        qcc::String str = ToXml();
-        //write to config file
-        std::ofstream iniFileWrite(m_configFileName.c_str(), std::ofstream::out | std::ofstream::trunc);
-        //write to config file
-        iniFileWrite.write(str.c_str(), str.length());
-        iniFileWrite.close();
-      
-        AboutObjApi* aboutObjApi = AboutObjApi::getInstance();
-        if (aboutObjApi) {
-            status = aboutObjApi->Announce();
-            std::cout << "Announce status " << QCC_StatusText(status) << std::endl;
-        }
-    }
 
     adapt_debug("Exit AboutDataStore::Update");
     return status;

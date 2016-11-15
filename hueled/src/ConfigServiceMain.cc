@@ -158,8 +158,8 @@ int devOnlineHandle(char *manufactureSN, char *name, char *power, char *bright, 
 \"manufactureSN\":\"%s\", \
 \"manufactureDataModelId\":\"1\", \
 \"deviceType\":\"Led\", \
-\"type\":\"Extended color light\"\
-\"modelId\":\"LCT007\"\
+\"type\":\"Extended color light\", \
+\"modelId\":\"LCT007\", \
 \"softwareVersion\":\"%s\"}";
     char devData[512]={0};
 

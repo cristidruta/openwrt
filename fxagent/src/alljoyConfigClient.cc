@@ -298,38 +298,6 @@ void insertSessionInfo(char *interfaceName, const char *busName, SessionPort por
                 std::cout << "don't need to JoinSession" << std::endl;
             }
         }
-
-        /* insert new session info to list head */
-        if (sessionInfoList == NULL)
-        {
-            sessionInfoList = node;
-        }
-        else
-        {
-            node->next = sessionInfoList;
-            sessionInfoList = node;
-        }
-
-        QStatus status = ER_OK;
-        SessionId sessionId;
-        SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false,
-                SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
-        status = busAttachment->JoinSession(node->busName, node->port, NULL, sessionId, opts);
-
-        if(status == ER_OK)
-        {
-            node->sessionId = sessionId;
-            //g_sessionId = sessionId;
-            //strcpy(g_busName, node->busName);
-            std::cout << "JoinSession Success, sessionId = "<<sessionId<<"" << std::endl;
-            std::cout << "objectPath = " << objectPath << std::endl;
-            std::cout << "interfaceName = " << interfaceName << std::endl;
-        }
-        else
-        {
-            std::cout << "WARNING - JoinSession failed: " << QCC_StatusText(status) << std::endl;
-        }
-
     }
     else
     {
@@ -474,7 +442,6 @@ class MyAboutListener : public AboutListener {
         
         //strcpy(g_busName, busName);
         //g_port = port;
-        insertSessionInfo(thisInterfaceName, busName, port);
 #if 0
         if(remoteConfigFlag == 1)
         {
@@ -623,6 +590,7 @@ int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg a
             char* interfaceOfAnnounce;
             status = interfaceEnteries[i].Get("s", &interfaceOfAnnounce);
             std::cout << "GaoJing InterfaceOfAnnounce " << i << ": " << interfaceOfAnnounce << std::endl;
+
             if(status != ER_OK)
             {
                 return -1;
