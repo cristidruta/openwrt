@@ -42,6 +42,21 @@ static int g_hostHdrLen=-1;
 #define HEAD_CON_LEN_LEN (25)
 #define HEAD_HOST_LEN (g_hostHdrLen)
 
+#define FXAGENT_HEAD_LEN (sizeof(struct fxIoT_head))
+
+static int iota_addIoTHeader(char *buf, int conLen)
+{
+    struct fxIoT_head head;
+    memset(&head, 0, sizeof(struct fxIoT_head));
+
+    head.length = conLen;
+
+    strncpy(buf, &head, FXAGENT_HEAD_LEN);
+    *(buf + FXAGENT_HEAD_LEN + conLen) = '\0';
+
+    return 0;
+}
+
 void iota_genHostStr(char *server)
 {
     g_hostHdrLen = snprintf(g_hostStr, sizeof(g_hostStr)-1, HTTP_HEAD_HOST, server);
@@ -166,7 +181,7 @@ static int iota_sendHttpBuf(char *buf, int len)
 }
 /* iota func end */
 
-int cloudc_build_register_js_buf(char *js_buf); 
+int cloudc_build_register_js_buf(char *buf, int maxLen); 
 int cloudc_build_online_js_buf(char *js_buf, char *devData); 
 int cloudc_build_recv_rsp_js_buf(char *type, int serial, int rsp_status, char *js_buf);
 int cloudc_build_alljoyn_recv_rsp_js_buf(char *type, int serial, char *user_id, char *device_id, int rsp_status, char *js_buf);
@@ -174,7 +189,7 @@ int cloudc_build_notification_js_buf(char *type, int serial, char *deviceId,char
 int cloudc_build_rsp_ipk_js_buf(char *type, int serial, struct ipk_info *ipk_list_head, int *status, int real_ipk_num, char *js_buf);
 int cloudc_build_rsp_query_js_buf(char *type, int serial, struct ipk_query_info_node *query_list_head, char *js_buf);
 int cloudc_build_rsp_opkg_js_buf(char *type, int serial, int update_status, int replace_status, char *js_buf);
-int cloudc_build_rsp_plugin_js_buf(char *type, int serial, char *action, int ret, char *deviceId, int pluginId, char *plugin_version, char *js_buf);
+int cloudc_build_rsp_plugin_js_buf(char *buf, int maxLen, char *type, int serial, char *action, int ret, char *deviceId, int pluginId, char *plugin_version);
 int cloudc_build_rsp_get_js_buf(char *type, int serial, char *user_id, char *device_id, char *device_type, struct ipk_info *config_info_head, int key_name_num, char *js_buf); 
 int cloudc_build_rsp_set_js_buf(char *type, int serial, char *user_id, char *device_id, char *devData, int retCode, char *js_buf);
 int cloudc_build_send_http_buf(char *js_buf, char *http_buf);
@@ -369,15 +384,16 @@ int cloudc_send_rsp_set_buf(char *type, int cmdId, char *user_id, char *device_i
         return -1;
     }
 
+#if 0
     if ((headLen=iota_getHttpHeadLen()) == -1)
     {
         cloudc_error("iot server string is missing!");
         return -1;
     }    
-
+#endif
     /* reserve headLen bytes for http head */
-    if ((conLen=iota_buildSetRspData(&httpBuf[headLen],
-                                     SEND_MAX_BUF_LEN-headLen,
+    if ((conLen=iota_buildSetRspData(&httpBuf[FXAGENT_HEAD_LEN],
+                                     SEND_MAX_BUF_LEN-FXAGENT_HEAD_LEN,
                                      cmdId,
                                      retCode,
                                      jsonDevData)) < 0)
@@ -386,15 +402,18 @@ int cloudc_send_rsp_set_buf(char *type, int cmdId, char *user_id, char *device_i
         return -1;
     }
 
+#if 0
     if ((ret=iota_addHttpHeader(httpBuf, conLen)) != 0)
     {
         cloudc_error("failed to build http head!");
         return -1;
     }
-
+#else
+    iota_addIoTHeader(httpBuf, conLen);
+#endif
     cloudc_debug("httpBuf=%s", httpBuf);
 
-    iota_sendHttpBuf(httpBuf, headLen+conLen);
+    iota_sendHttpBuf(httpBuf, FXAGENT_HEAD_LEN+conLen);
 
     cloudc_debug("Exit.");
 
@@ -515,10 +534,11 @@ EXIT:
 }
 
 
-int cloudc_build_register_js_buf(char *js_buf)
+int cloudc_build_register_js_buf(char *buf, int maxLen)
 {
     cJSON *json_root=NULL;
     cJSON *jsonDevData=NULL;
+    int ret = -1;
     char *s=NULL;
     char *devData = "{\"name\":\"Gateway\", \
                        \"manufacture\":\"feixun\", \
@@ -556,8 +576,9 @@ int cloudc_build_register_js_buf(char *js_buf)
     s = cJSON_PrintUnformatted(json_root);
     if (s)
     {
-        strncpy(js_buf, s, SEND_MAX_BUF_LEN - 1);
-        cloudc_debug("create js_buf  is %s\n", js_buf);
+        ret=snprintf(buf, maxLen, "%s", s);
+        buf[maxLen-1] = '\0';
+        cloudc_debug("ret=%d,buf=%s\n", ret, buf);
         free(s);
     }
     else
@@ -567,7 +588,7 @@ int cloudc_build_register_js_buf(char *js_buf)
     cJSON_Delete(json_root);
 
     cloudc_debug("Exit.");
-    return 0;
+    return ret;
 }
 
 int cloudc_build_online_js_buf(char *js_buf, char *devData)
@@ -619,6 +640,7 @@ int cloudc_build_online_js_buf(char *js_buf, char *devData)
 
 int cloudc_send_register_buf(void)
 {   
+#if 0
     char build_js_buf[SEND_MAX_BUF_LEN] = {0};
     char build_http_buf[SEND_MAX_BUF_LEN] = {0};
     int ret1 = -1;
@@ -638,6 +660,26 @@ int cloudc_send_register_buf(void)
 
     cloudc_debug("Exit.");
     return ret1;
+#endif
+
+    int conLen = -1;
+    char tcpBuf[SEND_MAX_BUF_LEN]={0};
+    cJSON * jsonDevData=NULL;
+
+    if ((conLen = cloudc_build_register_js_buf(&tcpBuf[FXAGENT_HEAD_LEN],
+                                          SEND_MAX_BUF_LEN - FXAGENT_HEAD_LEN)) < 0)
+    {
+        cloudc_error("failed to build tcp body!");
+        return -1;
+    }
+
+    iota_addIoTHeader(tcpBuf, conLen);
+
+    iota_sendHttpBuf(tcpBuf, FXAGENT_HEAD_LEN+conLen);
+
+    cloudc_debug("Exit.");
+
+    return 0;  
 }
 
 int cloudc_send_online_buf(char *devData)
@@ -831,6 +873,7 @@ int cloudc_send_alljoyn_recv_rsp_buf(char *type, int serial, char *user_id, char
 
 int cloudc_send_rsp_plugin_buf(char *type, int serial, char *action, int action_status, char *deviceId, int pluginId, char *plugin_version)
 {
+#if 0
     char build_js_buf[SEND_MAX_BUF_LEN] = {0};
     char build_http_buf[SEND_MAX_BUF_LEN] = {0};
     int ret1 = -1;
@@ -847,11 +890,35 @@ int cloudc_send_rsp_plugin_buf(char *type, int serial, char *action, int action_
         cloudc_send_http_buf(build_http_buf);
     }
     return ret1;
+#endif
+
+    int conLen = -1;
+    char tcpBuf[SEND_MAX_BUF_LEN]={0};
+    cJSON * jsonDevData=NULL;
+
+    if ((conLen = cloudc_build_rsp_plugin_js_buf(&tcpBuf[FXAGENT_HEAD_LEN],
+                    SEND_MAX_BUF_LEN - FXAGENT_HEAD_LEN,
+                    type, serial, action, action_status, 
+                    deviceId, pluginId, plugin_version)) < 0)
+    {
+        cloudc_error("failed to build tcp body!");
+        return -1;
+    }
+
+    iota_addIoTHeader(tcpBuf, conLen);
+
+    iota_sendHttpBuf(tcpBuf, FXAGENT_HEAD_LEN+conLen);
+
+    cloudc_debug("Exit.");
+
+    return 0;  
+
 }
 
-int cloudc_build_rsp_plugin_js_buf(char *type, int serial, char *action, int action_status, char *deviceId, int pluginId, char *plugin_version, char *js_buf)
+int cloudc_build_rsp_plugin_js_buf(char *buf, int maxLen, char *type, int serial, char *action, int action_status, char *deviceId, int pluginId, char *plugin_version)
 {
     cJSON *json_root;
+    int ret = -1;
     /*create json string root*/
     json_root = cJSON_CreateObject();
 
@@ -883,13 +950,14 @@ int cloudc_build_rsp_plugin_js_buf(char *type, int serial, char *action, int act
     char *s = cJSON_PrintUnformatted(json_root);
     if (s)
     {
-        strncpy(js_buf, s, SEND_MAX_BUF_LEN - 1);
-        cloudc_debug("create js_buf  is %s\n",js_buf);
+        ret=snprintf(buf, maxLen, "%s", s);
+        buf[maxLen-1] = '\0';
+        cloudc_debug("ret=%d,buf=%s\n", ret, buf);
         free(s);
     }
     cJSON_Delete(json_root);
 
-    return 0;
+    return ret;
 EXIT:
     return -1;
 

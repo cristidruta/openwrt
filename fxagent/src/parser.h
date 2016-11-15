@@ -125,6 +125,12 @@ typedef struct task_data_node
     struct http_value data;
 }task_data_node;
 
+typedef struct fxIoT_head
+{
+    short int length;
+    char cequence;
+    char reserved;
+}fxIoT_head;
 
 #ifdef __cplusplus
 }

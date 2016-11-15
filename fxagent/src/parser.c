@@ -19,6 +19,8 @@ http_value recvdata;
 int rsp_status = 0;
 char keyName[3][30] = {"power_switch", "status", "color_rgb"};
 
+#define FXAGENT_HEAD_LEN (sizeof(struct fxIoT_head))
+
 /* definition for msg type parser */
 typedef enum {
     MSG_DEV_ONLINE_RSP=0,
@@ -61,7 +63,10 @@ static AgentMsgType agent_getMsgType(char *msgStr)
 int cloudc_parse_receive_info(char *recvbuf)
 {
     char *http_body = NULL;
+    int data_len = 0;
+    char *msg_ptr = recvbuf;
     cloudc_debug("%s[%d]: Enter", __func__, __LINE__);
+#if 0
     if (0 == cloudc_parse_http_header(recvbuf))
     {
         http_body = cloudc_get_http_body(recvbuf);
@@ -70,6 +75,20 @@ int cloudc_parse_receive_info(char *recvbuf)
         {
             cloudc_parse_http_body(http_body);
         }
+    }
+#endif
+
+    while ((data_len = cloudc_parse_http_header(msg_ptr)) > 0)
+    {
+        http_body = cloudc_get_http_body(&msg_ptr[FXAGENT_HEAD_LEN]);
+
+        if (NULL != http_body)
+        {
+            cloudc_parse_http_body(http_body);
+        }
+
+        msg_ptr += (FXAGENT_HEAD_LEN + data_len);
+
     }
 
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
@@ -84,6 +103,25 @@ int cloudc_parse_http_header(char *recvbuf)
      * ...
      * if return code is ok, then return 0 and go on parse body value
      * */
+
+    if (!recvbuf) 
+    {
+        return 0;
+    }
+
+    struct fxIoT_head head;
+    int len = 0;
+
+    memset(&head, 0, sizeof(struct fxIoT_head));
+    memcpy(&head, recvbuf, sizeof(struct fxIoT_head));
+
+    len = head.length;
+    cloudc_debug("data_len:%d", len);
+
+    if (len > 0)
+    {
+        return len;
+    }
 
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
     return 0;
