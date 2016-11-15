@@ -714,7 +714,7 @@ int cloudc_send_online_buf(char *devData)
 
     if ((conLen = cloudc_build_online_js_buf(&tcpBuf[FXAGENT_HEAD_LEN],
                                           SEND_MAX_BUF_LEN - FXAGENT_HEAD_LEN,
-                                          devData) < 0))
+                                          devData)) < 0)
     {
         cloudc_error("failed to build tcp body!");
         return -1;
