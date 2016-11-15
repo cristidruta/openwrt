@@ -28,12 +28,14 @@ int get_ap_info(void);
 void cloudc_rpc_method_handle(struct http_value recv_data);
 int cloudc_manage_ipk(char *op_type, int serial_num, struct ipk_info *ipk_list_head, int real_ipk_num);
 int cloudc_manage_query(char *op_type, int serial_num);
+int cloudc_manage_dev_upgrade(char *op_type, int serial_num, char* device_id, char *user_id, char *dev_upgrade_url, char *MD5);
 int cloudc_manage_opkg(char *op_type, int serial_num, int update_flag, char *url);
 int cloudc_manage_service(char *op_type, int serial_num, struct ipk_info *ipk_list_head, int real_ipk_num);
 int cloudc_manage_alljoyn_set_operation(char *op_type, int serial_num, char *user_id, char *device_id, char *device_type, char *devData);
 int cloudc_manage_alljoyn_update_devid(char *op_type, char *device_id, char *device_sn);
 int cloudc_manage_alljoyn_set_devData(char *deviceId);
 
+int cloudc_download_dev_file(char *download_url, char *path);
 int cloudc_download_file(char *download_url);
 int cloudc_opkg_conf_update();
 
@@ -41,6 +43,7 @@ int cloudc_install_ipk(char *ipk_name);
 int cloudc_upgrade_ipk(char *ipk_name);
 int cloudc_uninstall_ipk(char *ipk_name);
 int check_ipk_installed(char *ipk_name);
+int download_check(char *md5);
 
 int cloudc_get_running_ipk_list(char *op_type, int serial_num);
 int cloudc_get_install_ipk_list(char *op_type, int serial_num);

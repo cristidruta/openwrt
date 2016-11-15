@@ -13,7 +13,7 @@
  *    ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  *    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  ******************************************************************************/
-
+#include <iostream>
 #include <algorithm>
 #include "CommonSampleUtil.h"
 #include "AboutObjApi.h"
@@ -128,9 +128,11 @@ QStatus CommonSampleUtil::fillAboutData(AboutData* aboutdata, qcc::String const&
     CHECK_RETURN(aboutdata->SetSupportUrl("http://www.alljoyn.org"))
 
     if (!aboutdata->IsValid()) {
-        printf("failed to setup about data.\n");
+        std::cout <<"failed to setup about data."<<std::endl;
         return ER_FAIL;
     }
+
+    std::cout << "return ok "<<std::endl;
     return status;
 }
 

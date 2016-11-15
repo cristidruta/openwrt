@@ -20,6 +20,7 @@ int cloudc_build_rsp_opkg_js_buf(char *type, int serial, int update_status, int 
 int cloudc_build_rsp_get_js_buf(char *type, int serial, char *user_id, char *device_id, char *device_type, struct ipk_info *config_info_head, int key_name_num, char *js_buf); 
 int cloudc_build_rsp_set_js_buf(char *type, int serial, char *user_id, char *device_id, char *devData, int retCode, char *js_buf);
 int cloudc_build_send_http_buf(char *js_buf, char *http_buf);
+int cloudc_build_notification_js_buf(char *type, int serial, char *deviceId,char *versionId, char *path, char *js_buf);
 
 int cloudc_send_register_buf(void); 
 int cloudc_send_online_buf(char *devData); 

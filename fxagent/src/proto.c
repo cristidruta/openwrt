@@ -170,6 +170,7 @@ int cloudc_build_register_js_buf(char *js_buf);
 int cloudc_build_online_js_buf(char *js_buf, char *devData); 
 int cloudc_build_recv_rsp_js_buf(char *type, int serial, int rsp_status, char *js_buf);
 int cloudc_build_alljoyn_recv_rsp_js_buf(char *type, int serial, char *user_id, char *device_id, int rsp_status, char *js_buf);
+int cloudc_build_notification_js_buf(char *type, int serial, char *deviceId,char *versionId, char *path, char *js_buf);//add by whzhe
 int cloudc_build_rsp_ipk_js_buf(char *type, int serial, struct ipk_info *ipk_list_head, int *status, int real_ipk_num, char *js_buf);
 int cloudc_build_rsp_query_js_buf(char *type, int serial, struct ipk_query_info_node *query_list_head, char *js_buf);
 int cloudc_build_rsp_opkg_js_buf(char *type, int serial, int update_status, int replace_status, char *js_buf);
@@ -661,6 +662,45 @@ int cloudc_send_online_buf(char *devData)
     cloudc_debug("%s[%d]: Exit ", __func__, __LINE__);
 }
 
+int cloudc_build_notification_js_buf(char *type, int serial, char *deviceId,char *userId, char *path, char *js_buf)
+{
+    cJSON *json_root;
+    //create json string root
+    json_root = cJSON_CreateObject();
+    
+    char noti_type[50] = {0};
+    snprintf(noti_type, sizeof(noti_type), "noti_%s", type);
+
+    if (!json_root)
+    {
+        cloudc_debug("%s[%d]: get json_root faild !", __func__, __LINE__);
+        goto EXIT;
+    }
+    else
+    {
+        cloudc_debug("%s[%d]: get json_root success!", __func__, __LINE__);
+    }
+    {
+        cJSON_AddStringToObject(json_root, "type", noti_type);
+        cJSON_AddNumberToObject(json_root, "commandId", serial);
+        cJSON_AddStringToObject(json_root, "deviceId", deviceId);
+        cJSON_AddStringToObject(json_root, "userId", userId);
+        cJSON_AddStringToObject(json_root, "IpmPath", path);
+        {
+            char *s = cJSON_PrintUnformatted(json_root);
+            if (s)
+            {
+                strncpy(js_buf, s, NOTI_MAX_BUF_LEN - 1);
+                cloudc_debug("%s[%d]: create js_buf is %s\n", __func__, __LINE__, js_buf);
+                free(s);
+            }
+        }
+        cJSON_Delete(json_root);
+    }
+    return 0;
+EXIT:
+    return -1;
+}
 int cloudc_build_recv_rsp_js_buf(char *type, int serial, int rsp_status, char *js_buf)
 {
     cJSON *json_root;

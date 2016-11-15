@@ -39,6 +39,7 @@ extern "C"
 #endif
 #define RECV_MAX_BUF_LEN 4096
 #define SEND_MAX_BUF_LEN 4096
+#define NOTI_MAX_BUF_LEN 4096
 #define RECV_TIME_OUT 30
 #define SEND_TIME_OUT 30
 

@@ -124,9 +124,12 @@
 #define EndianSwap64(_val) (OSSwapConstInt64(_val))
 
 #else
+
+#ifndef __swap16
 #define __swap16(_val) __bswap16(_val)
 #define __swap32(_val) __bswap32(_val)
 #define __swap64(_val) __bswap64(_val)
+#endif
 /**
  * Swap bytes to convert endianness of a 16 bit integer
  */

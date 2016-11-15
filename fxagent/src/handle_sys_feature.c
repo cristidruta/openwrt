@@ -5,6 +5,7 @@
 #include <curl/curl.h>
 #define CLOUDC_GET_APMAC "/etc/config/network"
 #include "handle_sys_feature.h"
+#define MAX_PATH_LEN 256
 
 
 
@@ -96,7 +97,11 @@ void cloudc_rpc_method_handle(struct http_value recv_data)
         case eQueryOperation:
             cloudc_manage_query(recv_data.rpc_cmd, recv_data.serial_num);
             break;
-
+        //add by whzhe
+        case eDevUpgrade:
+            cloudc_manage_dev_upgrade(recv_data.rpc_cmd, recv_data.serial_num, recv_data.device_id, recv_data.user_id, recv_data.dev_upgrade_url, recv_data.MD5);
+            break;
+        //end
         case eIpkOperation:
             cloudc_manage_ipk(recv_data.rpc_cmd, recv_data.serial_num, recv_data.ipk_name_head->next, recv_data.real_ipk_num);
             break;
@@ -156,6 +161,60 @@ void cloudc_rpc_method_handle(struct http_value recv_data)
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
 }
 
+int download_check(char *md5)
+{
+    /* need to compute the md5 of download file
+     * and compare with the md5 which the server provide .
+     * strcmp();
+     *
+
+    */
+    return 0;
+}
+
+int cloudc_manage_dev_upgrade(char *op_type, int serial_num, char* device_id, char *user_id, char *dev_upgrade_url, char *MD5)
+{
+    cloudc_debug("%s[%d]: Enter", __func__, __LINE__);
+    int upgrade_status = -1;
+    int download_status = -1;
+    int check_status = -1;
+    char ImpPath[MAX_PATH_LEN] = {0};
+
+    if (NULL != *dev_upgrade_url)
+    {
+        download_status = cloudc_download_dev_file(dev_upgrade_url, ImpPath);
+    
+        cloudc_debug("ImpPath = %s", ImpPath);
+    }
+    else
+    {
+        download_status = 1;
+        cloudc_debug("%s[%d]: EXIT: URL is NULL!", __func__, __LINE__);
+        return 1;
+    }
+    if (download_status == 1)
+    {
+        cloudc_debug("%s[%d]: EXIT: download file failed!", __func__, __LINE__);
+        return 1;
+    }
+    check_status = download_check(MD5);
+    if (check_status == 0)
+    {
+        NotificationSendMain(op_type, serial_num, device_id, user_id, ImpPath);
+    }
+    else
+    {
+        cloudc_debug("%s[%d] download file is not complete!");
+    }
+
+//    cloudc_send_rsp_opkg_buf(op_type, serial_num, update_status, replace_status);
+    cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
+    return 0;
+}
+
+
+
+    
 int cloudc_manage_opkg(char *op_type, int serial_num, int update_flag, char *url)
 {
     cloudc_debug("%s[%d]: Enter", __func__, __LINE__);
@@ -442,7 +501,6 @@ int cloudc_manage_alljoyn_set_operation(char *op_type, int serial_num, char *use
             __func__, __LINE__, op_type, serial_num, user_id, device_id, device_type);
 
     getObjInfoByDevId(device_id, interfaceName, objectPath, onlineStatus);
-    //strcpy(onlineStatus, "on");
     if(strcmp(onlineStatus, "on") == 0)
     {
         if(NULL != devData)
@@ -509,7 +567,82 @@ int cloudc_manage_alljoyn_set_devData(char *deviceId)
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
     return 0;
 }
+int cloudc_download_dev_file(char *download_url, char *path)
+{
+    CURL *curl;
+    CURLcode res;
+    int download_status = -1;
+    struct FtpFile ftpfile={
+    "/var/fw/dev_opkg.temp", /* name to store the file as if succesful */
+    NULL
+    };
+    char temp_buffer[128];
 
+    memset(temp_buffer, 0, 128);
+
+    strcpy(temp_buffer, "mkdir /var/fw");
+    system(temp_buffer);
+    
+    cloudc_debug("%s[%d]: Enter, and url is %s", __func__, __LINE__, download_url);
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    curl = curl_easy_init();
+    if(curl) {
+        /*
+        ** You better replace the URL with one that works! Note that we use an
+        ** FTP:// URL with standard explicit FTPS. You can also do FTPS:// URLs if
+        ** you want to do the rarer kind of transfers: implicit.
+        **/
+        curl_easy_setopt(curl, CURLOPT_URL, download_url);
+        /* Define our callback to get called when there's data to be written */
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_fwrite);
+        /* Set a pointer to our struct to pass to the callback */
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ftpfile);
+
+        /* Switch on full protocol/debug output */
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+        res = curl_easy_perform(curl);
+        /* always cleanup */
+        
+        curl_easy_cleanup(curl);
+
+        if(CURLE_OK != res) {
+                                        
+            /* we failed */
+                                      
+            cloudc_debug("%s[%d]: curl told us %d\n", __func__, __LINE__, res);
+            download_status = 1;            
+        }
+    }
+    
+    if(ftpfile.stream)        
+        fclose(ftpfile.stream); /* close the local file */
+   
+    curl_global_cleanup();              
+    if(1 == download_status)                                     
+    {
+        cloudc_debug("%s[%d]: Exit,download dev_opkg conf failure", __func__, __LINE__);                       
+        return 1;
+    }                
+    else             
+    {          
+        if(0 == rename("/var/fw/dev_opkg.temp","/var/fw/dev_opkg.bin") )
+        {
+            cloudc_debug("%s[%d]: Exit,rename success", __func__, __LINE__);
+            char *tempath = "http://172.17.60.162/fw/dev_opkg.bin";
+            strncpy(path, tempath, MAX_PATH_LEN - 1);
+              
+            cloudc_debug("path = %s", path);
+            return 0;
+        }
+        else
+        {
+            cloudc_debug("%s[%d]: Exit,rename failure", __func__, __LINE__);
+            return 1;
+        }
+    }
+}
 int cloudc_download_file(char *download_url)
 {
     CURL *curl;

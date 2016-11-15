@@ -22,6 +22,7 @@ char keyName[3][30] = {"power_switch", "status", "color_rgb"};
 /* definition for msg type parser */
 typedef enum {
     MSG_DEV_ONLINE_RSP=0,
+    MSG_FIRMWARE_UPGRADE,
     MSG_UNKNOWN
 }AgentMsgType;
 
@@ -32,6 +33,7 @@ typedef struct {
 
 static AgentMsgMapping agentMsgArray[] = {
     {MSG_DEV_ONLINE_RSP, "rsp_device_online"},
+    {MSG_FIRMWARE_UPGRADE, "firmware_upgrade"},
     {MSG_UNKNOWN, "unknown"}
 };
 
@@ -96,6 +98,57 @@ char *cloudc_get_http_body(char *recvbuf)
 
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
     return http_body;
+}
+
+static int handle_firmware_upgrade(cJSON *json)
+{
+    cJSON *json_type, *json_deviceId, *json_commandId, *json_userId, *json_url, *json_md5;
+    
+    cloudc_debug("%s[%d]: Enter !", __func__, __LINE__);
+
+//    json_ = cJSON_GetObjectItem(json, "deviceId");
+    json_type = cJSON_GetObjectItem(json, "type");
+    json_deviceId = cJSON_GetObjectItem(json, "deviceId");
+    json_commandId = cJSON_GetObjectItem(json, "commandId");    
+    json_userId = cJSON_GetObjectItem(json, "userId");
+    json_url = cJSON_GetObjectItem(json, "url");
+    json_md5 = cJSON_GetObjectItem(json, "md5");
+
+    if (!json_type || !json_deviceId || !json_md5 || !json_userId || !json_url || !json_commandId)
+    {
+        cloudc_error("%s[%d]: missing json param!", __func__, __LINE__);
+        return -1;
+    }
+
+    if (json_type->type != cJSON_String ||
+        json_deviceId->type != cJSON_String || 
+        json_userId->type != cJSON_String ||
+        json_url->type != cJSON_String || 
+        json_md5->type != cJSON_String ||
+        json_commandId->type != cJSON_Number)
+    {
+        cloudc_error("%s[%d]: param type is wrong!", __func__, __LINE__);
+        return -1;
+    }
+
+    http_value taskData;
+    taskData.rpc_flag = eDevUpgrade;
+    strncpy(taskData.rpc_cmd, json_type->valuestring, sizeof(taskData.rpc_cmd) - 1);
+    strncpy(taskData.device_id, json_deviceId->valuestring, sizeof(taskData.device_id) - 1);
+    strncpy(taskData.user_id, json_userId->valuestring, sizeof(taskData.user_id) - 1);
+    strncpy(taskData.dev_upgrade_url, json_url->valuestring, sizeof(taskData.dev_upgrade_url) - 1);
+    taskData.serial_num = json_commandId->valueint;
+    strncpy(taskData.MD5, json_md5->valuestring, sizeof(taskData.MD5) - 1);
+    cloudc_debug("%s[%d]: taskData:%s , %s, %s, %s, %d", __func__, __LINE__, taskData.rpc_cmd, taskData.device_id, taskData.user_id,taskData.dev_upgrade_url, taskData.serial_num);
+
+    task_queue_enque(&queue_head, &taskData);        
+  /*  if (!queue_head)
+    {
+        cloudc_debug("%s[%d]: q_tmp->next is NULL ", __func__, __LINE__);
+    }
+    */
+    cloudc_debug("%s[%d]: EXIT!", __func__, __LINE__);
+    return 0;
 }
 
 static int handle_dev_online_rsp(cJSON *json)
@@ -230,6 +283,11 @@ int cloudc_parse_http_body(char *json_buf)
             cJSON_Delete(json);
             return;
 
+        case MSG_FIRMWARE_UPGRADE:
+            handle_firmware_upgrade(json);
+            cJSON_Delete(json);
+            return;
+
         defalut:
             cloudc_error("Can not find msgType for %s\r\n", json_type->valuestring);
     }
@@ -300,12 +358,90 @@ int cloudc_parse_http_body(char *json_buf)
                 task_queue_enque(&queue_head, &recvdata);
             }
             else
-            {
+           {
                 rsp_status = 0;
                 cloudc_send_recv_rsp_buf(recvdata.rpc_cmd, recvdata.serial_num, rsp_status);
                 cloudc_error("%s[%d]: wrong parameter, no need to handle it", __func__, __LINE__);  
             }
             break;
+            //add by whzhe
+     /*   case eDevUpgrade:
+            json_device_id = cJSON_GetObjectItem(json, "device_id");
+            if (NULL == json_device_id)
+            {
+                cloudc_debug("%s[%d]: failed to get device_id from json", __func__, __LINE__);
+            }
+            else if (json_device_id->type == cJSON_String )
+            {
+                strncpy(recvdata.device_id, json_device_id->valuestring, sizeof(recvdata.device_id) - 1);
+                recv_status_count++;
+                cloudc_debug("%s[%d] device_id = %d", __func__, __LINE__, json_device_id->valuestring);
+            }
+            else
+            {
+                cloudc_debug("%s[%d] device id is not string", __func__, __LINE__);
+            }
+
+            json_versionid = cJSON_GetObjectItem(json, "version_id");
+            if (NULL == json_versionid)
+            {
+                cloudc_debug("%s[%d]: failed to get dev_url from json", __func__, __LINE__);
+            }
+            else if (json_versionid->type == cJSON_String)
+            {
+                strncpy(recvdata.version_id, json_versionid->valuestring, sizeof(recvdata.version_id) - 1);
+                recv_status_count++;
+                cloudc_debug("%s[%d]: version_id = %s", __func__, __LINE__, json_versionid->valuestring);
+            }
+            else 
+            {
+                cloudc_error("%s[%d]: version_id is not string");
+            }
+
+            json_dev_url = cJSON_GetObjectItem(json, "dev_url");
+            if (NULL == json_dev_url)
+            {   
+                cloudc_debug("%s[%d]: failed to get dev_url from json", __func__, __LINE__);
+            }
+            else if (json_dev_url->type == cJSON_String)
+            {   
+                 strncpy(recvdata.dev_upgrade_url, json_dev_url->valuestring, sizeof(recvdata.dev_upgrade_url) - 1);
+                 recv_status_count++;
+                 cloudc_debug("%s[%d]: dev_upgrade_url = %s", __func__, __LINE__, json_dev_url->valuestring);
+            }
+            else
+            {
+                 cloudc_error("%s[%d]: dev_url value is not string");
+            }
+            json_MD5 = cJSON_GetObjectItem(json, "MD5");
+            if (NULL == json_MD5)
+            {
+                cloudc_debug("%s[%d]: failed to get MD5 from json", __func__, __LINE__);
+            }
+            else if (json_MD5->type == cJSON_String)
+            {
+                strncpy(recvdata.MD5, json_MD5->valuestring, sizeof(recvdata.MD5) - 1);
+                recv_status_count++;
+                cloudc_debug("%s[%d]: MD5 = %s", __func__, __LINE__, json_MD5->valuestring);
+            }
+            if (6 == recv_status_count)
+            {
+                rsp_status = 1;
+                cloudc_debug("%s[%d]: correct parameter, will continue to handle it", __func__, __LINE__);
+                
+                task_queue_enque(&queue_head, &recvdata);
+              //  cloudc_rpc_method_handle(recvdata);
+            }
+            else
+            {
+                rsp_status = 0;
+                cloudc_send_recv_rsp_buf(recvdata.rpc_cmd, recvdata.serial_num, rsp_status);
+                cloudc_error("%s[%d]: wrong parameter, no need to handle it", __func__, __LINE__);
+            }
+            break;*/
+
+
+
 
         case eOpkgOperation: /* need four key words: type, serial, update, url */
             json_update = cJSON_GetObjectItem(json, "update");  

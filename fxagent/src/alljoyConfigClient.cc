@@ -35,12 +35,52 @@
 #include "cloudc_log.h"
 
 /* notification add by gaojing start 2016.06.28 */
+#include <algorithm>
+#include <iostream>
+#include <signal.h>
+#include <alljoyn/PasswordManager.h>
 #include <sstream>
 #include <alljoyn/PasswordManager.h>
 #include <alljoyn/notification/NotificationService.h>
 #include "common/NotificationReceiverTestImpl.h"
+#include <alljoyn/notification/NotificationText.h>
+#include <alljoyn/notification/RichAudioUrl.h>
+#include <alljoyn/notification/NotificationEnums.h>
+#include "samples_common/CommonSampleUtil.h"
+#include <alljoyn/notification/Notification.h>
+#include <alljoyn/services_common/GuidUtil.h>
+#include <alljoyn/services_common/LogModulesNames.h>
+#include <string.h>
+using namespace qcc;
+using namespace ajn;
+using namespace services;
+
+#include "share.h"
+//#include "parser.h"
+#include "proto.h"
+// Set application constants
+#define DEVICE_NAME "testdeviceName"
+#define APP_ID 1234
+#define APP_NAME "fxagent"
+#define LANG1  "devupg"
+//#define TEXT1 "Hello World"
+//#define LANG2  "es"
+//#define TEXT2 "Hola Mundo"
+#define KEY1 "On"
+#define VAL1 "Hello"
+#define KEY2 "Off"
+#define VAL2 "Goodbye"
+#define URL1 "http://url1.com"
+#define URL2 "http://url2.com"
+#define RICH_ICON_URL "http://iconurl.com"
+#define CONTROL_PANEL_SERVICE_OBJECT_PATH "/ControlPanel/MyDevice/areYouSure"
+#define RICH_ICON_OBJECT_PATH "/icon/objectPath"
+#define RICH_AUDIO_OBJECT_PATH "/Audio/objectPath"
+#define SERVICE_PORT 900
+
 /* notification add by gaojing end 2016.06.28 */
 
+extern "C" int NotificationSendMain(char *msg_type, int serial, char *deviceid, char *userid, char *ImpPath);
 extern "C"
 {
 #include "parser.h"
@@ -58,7 +98,7 @@ extern "C" void StopAlljoynService();
 extern "C" int configClientMain(char *interfaces, char *matchObjectPath, int msgType, char *devData);
 void HandleUpdateConfigMethod(const char *interfaces);
 void UpdateConfig(qcc::String const& busName, unsigned int id, const char *interfaceName, const char *objectPath, int msgType, char *devData);
-int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg aboutDataArg, char *interfaceName, char *objectPath);
+int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg aboutDataArg, char *interfaceName, char *objectPath, const char *busName, SessionPort port);
 int ParseGetAboutDataArg(ajn::MsgArg aboutDataArg, char *devData);
 int InteresteForAllConfigInterfaces(const char **interfaces);
 int NotificationInit();
@@ -71,6 +111,15 @@ char* busname = NULL;
 char* objectPath = NULL;
 char* interfaceName = NULL;
 char *getDevData = NULL;
+
+
+NotificationService* prodService = 0;
+NotificationSender* Sender = 0;
+ //    BusAttachment* bus = 0;
+AboutData* aboutData = NULL;
+AboutObj* aboutObj = NULL;
+CommonBusListener*  busListener = 0;
+     
 //char g_busName[256]={0};
 typedef enum 
 {
@@ -88,8 +137,12 @@ using namespace services;
 //SessionId g_sessionId;
 //SessionPort g_port;
 
-typedef struct sessionInfo {
+typedef struct interfaceNamelist{
     char interfaceName[MAX_INTERFACE_LEN];
+    struct interfaceNamelist *next;
+}interfaceNamelist;
+typedef struct sessionInfo {
+    struct interfaceNamelist *interface_name_list;
     char busName[MAX_BUSNAME_LEN];
     SessionPort port;
     SessionId sessionId;
@@ -124,10 +177,18 @@ sessionInfo *findSessionInfo(char *interfaceName)
 
     while(node)
     {
-        if (strcmp(interfaceName, node->interfaceName) == 0)
+        interfaceNamelist *list = NULL;
+        list = node->interface_name_list;
+        while(list)
         {
-            cloudc_debug("find session info[%s]", interfaceName);
-            return node;
+
+            if (strcmp(interfaceName, list->interfaceName) == 0)
+
+            {
+                cloudc_debug("find session info[%s]", interfaceName);
+                return node;
+            }
+            list = list->next;
         }
 
         node = node->next;
@@ -139,6 +200,29 @@ sessionInfo *findSessionInfo(char *interfaceName)
     return NULL;
 }
 
+sessionInfo *findBusName(const char *busName)
+{
+    sessionInfo *node = NULL;
+
+    cloudc_debug("Enter findBusName!");
+    node = sessionInfoList;
+
+    while(node)
+    {
+        if (strcmp(busName, node->busName) == 0)
+        {
+            cloudc_debug("find session info[%s]", busName);
+            return node;
+        }
+
+        node = node->next;
+    }
+
+
+    cloudc_debug("don't find busName[%s]", busName);
+    cloudc_debug("Exit findBusName");
+    return NULL;
+}
 
 void insertSessionInfo(char *interfaceName, const char *busName, SessionPort port)
 {
@@ -147,18 +231,72 @@ void insertSessionInfo(char *interfaceName, const char *busName, SessionPort por
     cloudc_debug("Enter insertSessionInfo");
     if (findSessionInfo(interfaceName) == NULL)
     {
-        node = (sessionInfo *)malloc(sizeof(sessionInfo));
-        if (node != NULL)
-        {
-            strncpy(node->interfaceName, interfaceName, sizeof(node->interfaceName));
-            strncpy(node->busName, busName, sizeof(node->busName));
-            node->port = port;
-            node->next=NULL;
+       
+        /* insert new session info to list head */
+        if (findBusName(busName) == NULL)
+        { 
+            node = (sessionInfo *)malloc(sizeof(sessionInfo));
+            interfaceNamelist *list = NULL;
+            list = (interfaceNamelist *)malloc(sizeof(interfaceNamelist));
+            if (node != NULL && list != NULL)
+            {
+                strncpy(list->interfaceName, interfaceName, sizeof(list->interfaceName));
+                strncpy(node->busName, busName, sizeof(node->busName));
+                node->port = port;
+                list->next = NULL;
+                node->interface_name_list = list;
+                node->next=NULL;
+            }
+            else
+            {
+                cloudc_debug("malloc session node failed");
+                return;
+            }
+            node->next = sessionInfoList;
+            sessionInfoList = node;
+
+        
+
+            QStatus status = ER_OK;
+            SessionId sessionId;
+            SessionOpts opts(SessionOpts::TRAFFIC_MESSAGES, false,
+                    SessionOpts::PROXIMITY_ANY, TRANSPORT_ANY);
+            status = busAttachment->JoinSession(node->busName, node->port, NULL, sessionId, opts);
+            if(status == ER_OK)
+            {
+                node->sessionId = sessionId;
+                //g_sessionId = sessionId;
+                //strcpy(g_busName, node->busName);
+                std::cout << "JoinSession Success, sessionId = "<<sessionId<<"" << std::endl;
+                std::cout << "objectPath = " << objectPath << std::endl;
+                std::cout << "interfaceName = " << interfaceName << std::endl;
+            }
+            else
+            {
+                std::cout << "WARNING - JoinSession failed: " << QCC_StatusText(status) << std::endl;
+            }
         }
         else
         {
-            cloudc_debug("malloc session node failed");
-            return;
+            node = (sessionInfo *)malloc(sizeof(sessionInfo));
+            interfaceNamelist *list, *tmp = NULL;
+            list = (interfaceNamelist *)malloc(sizeof(interfaceNamelist));
+            tmp = (interfaceNamelist *)malloc(sizeof(interfaceNamelist));
+
+            if (node != NULL && tmp != NULL && tmp != NULL)
+            {
+                node = findBusName(busName);
+                strncpy(tmp->interfaceName, interfaceName, sizeof(tmp->interfaceName));
+                list = node->interface_name_list; 
+                while (list->next)
+                {
+                    list = list->next;
+                }
+
+                tmp->next = NULL;
+                list->next = tmp;
+                std::cout << "don't need to JoinSession" << std::endl;
+            }
         }
 
         /* insert new session info to list head */
@@ -332,7 +470,7 @@ class MyAboutListener : public AboutListener {
         char thisInterfaceName[MAX_INTERFACE_LEN] = {0};
         char thisObjectPath[MAX_OBJECTPATH_LEN] = {0};
 
-        CheckIfConfigInterfaceOnline(objectDescriptionArg, aboutDataArg, thisInterfaceName, thisObjectPath);
+        CheckIfConfigInterfaceOnline(objectDescriptionArg, aboutDataArg, thisInterfaceName, thisObjectPath, busName, port);
         
         //strcpy(g_busName, busName);
         //g_port = port;
@@ -440,7 +578,7 @@ int CreateBusAttachment(void)
     return 0;
 }
 
-int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg aboutDataArg, char *interfaceName, char *objectPath)
+int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg aboutDataArg, char *interfaceName, char *objectPath, const char *busName, SessionPort port)
 {
     QStatus status = ER_OK;
     char *deviceObjectPath = NULL;
@@ -455,7 +593,7 @@ int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg a
         return -1;
     }
 
-    for(size_t i = 0; i < objectNum; i ++)
+    for(size_t i = 0; i < objectNum; i++)
     {
         char* objectDescriptionPath;
         MsgArg* interfaceEnteries;
@@ -498,6 +636,7 @@ int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg a
             memset(interfaceName, 0, MAX_INTERFACE_LEN);
             deviceInterfaceName = interfaceOfAnnounce;
             strncpy(interfaceName, deviceInterfaceName, MAX_INTERFACE_LEN - 1);
+            insertSessionInfo(interfaceName, busName, port);
 
             std::set<qcc::String>::iterator searchIterator = handledAnnouncements.find(qcc::String(interfaceName));
             if(searchIterator == handledAnnouncements.end())
@@ -760,7 +899,7 @@ void StartAlljoynService()
     CreateBusAttachment();
     const char* interfaces[] = {"*.*.*.Config"};
     InteresteForAllConfigInterfaces(interfaces);
-    NotificationInit();
+    //NotificationInit();
     std::cout << "GaoJing Exit StartAlljoynService func" << std::endl;
 }
 
@@ -769,7 +908,7 @@ void StopAlljoynService()
     std::cout << "GaoJing Enter StopAlljoynService func" << std::endl;
     const char* interfaces[] = {"*.*.*.Config"};
     /* notification add by gaojing start */
-    notificationCleanup(); 
+    //notificationCleanup(); 
     /* notification add by gaojing end */
     busAttachment->CancelWhoImplements(interfaces, sizeof(interfaces) / sizeof(interfaces[0]));
     busAttachment->UnregisterAboutListener(*aboutListener);
@@ -806,7 +945,22 @@ int configClientMain(char *interfaces, char *matchObjectPath, int msgType, char 
     getMsgType = msgType;
     getDevData = devData;
 
+    //HandleUpdateConfigMethod(interfaces);
     node = findSessionInfo(interfaces);
+  /*  node = sessionInfoList;
+    char tmp[512] = "Philips.led.001788010231d62c0b.Config";
+    while(node)
+    {
+        if (strcmp(tmp, node->interfaceName) == 0)
+        {
+            cloudc_debug("find session info[%s]", interfaceName);
+            break;
+        }
+
+        node = node->next;
+    }
+    */
+
     if (node == NULL)
     {
         cloudc_error("interface [%s] don't exist");
@@ -867,3 +1021,168 @@ int configClientMain(char *interfaces, char *matchObjectPath, int msgType, char 
 
 } /* main() */
 
+void cleanup()
+{
+    // Clean up
+    if (prodService) {
+        prodService->shutdown();
+        prodService = NULL;
+    }
+    if (busAttachment && busListener) {
+        CommonSampleUtil::aboutServiceDestroy(busAttachment, busListener);
+    }
+    if (busListener) {
+        delete busListener;
+        busListener = NULL;
+    }
+    if (aboutData) {
+        delete aboutData;
+        aboutData = NULL;
+    }
+    if (aboutObj) {
+        delete aboutObj;
+        aboutObj = NULL;
+    }
+    if (busAttachment) {
+        delete busAttachment;
+        busAttachment = NULL;
+    }
+    std::cout << "Goodbye!" << std::endl;
+}
+
+void signal_callback_handler(int32_t signum)
+{
+    std::cout << "got signal_callback_handler" << std::endl;
+    s_interrupt = true;
+}
+
+int NotificationSendMain(char *msg_type, int serial, char *deviceid, char *userid, char *ImpPath)
+{
+    cloudc_debug("Enter!");
+    
+//    NotificationService* prodService = 0;
+//    NotificationSender* Sender = 0;
+//    BusAttachment* bus = 0;
+ //   AboutData* aboutData = NULL;
+//    AboutObj* aboutObj = NULL;
+//    CommonBusListener*  busListener = 0;
+    
+    char js_buf[SEND_MAX_BUF_LEN] = {0};
+
+    // Allow CTRL+C to end application
+    signal(SIGINT, signal_callback_handler);
+
+    // Initialize Service object and Sender Object
+    prodService = NotificationService::getInstance();
+
+//set Daemon password only for bundled app
+#ifdef QCC_USING_BD
+    PasswordManager::SetCredentials("ALLJOYN_PIN_KEYX", "000000");
+#endif
+    QStatus status;
+
+    QCC_SetDebugLevel(logModules::NOTIFICATION_MODULE_LOG_NAME, logModules::ALL_LOG_LEVELS);
+
+    busAttachment = CommonSampleUtil::prepareBusAttachment();
+    if (busAttachment == NULL) {
+        std::cout << "Could not initialize BusAttachment." << std::endl;
+        return 1;
+    }
+
+   qcc::String deviceId;
+   GuidUtil::GetInstance()->GetDeviceIdString(&deviceId);
+   qcc::String appid;
+   GuidUtil::GetInstance()->GenerateGUID(&appid);
+
+    aboutData = new AboutData("en");
+    DeviceNamesType deviceNames;
+    deviceNames.insert(std::pair<qcc::String, qcc::String>("en", "fxagent"));
+    status = CommonSampleUtil::fillAboutData(aboutData, appid, APP_NAME, deviceId, deviceNames);
+    if (status != ER_OK) {
+        std::cout << "Could not fill About Data." << std::endl;
+        cleanup();
+        return 1;
+    }
+
+    busListener = new CommonBusListener();
+
+    aboutObj = new AboutObj(*busAttachment, BusObject::ANNOUNCED);
+    status = CommonSampleUtil::prepareAboutService(busAttachment, aboutData, aboutObj, busListener, SERVICE_PORT);
+    if (status != ER_OK) {
+        std::cout << "Could not set up the AboutService." << std::endl;
+        cleanup();
+        return 1;
+    }
+
+    Sender = prodService->initSend(busAttachment, aboutData);
+    if (!Sender) {
+        std::cout << "Could not initialize Sender - exiting application" << std::endl;
+        cleanup();
+        return 1;
+    }
+
+    status = CommonSampleUtil::aboutServiceAnnounce();
+    if (status != ER_OK) {
+        std::cout << "Could not announce." << std::endl;
+        cleanup();
+        return 1;
+    }
+    // Prepare message type
+    NotificationMessageType messageType = INFO;
+    //add cloudc_build_notification_js_bu
+    int ret1 = -1;
+    ret1 = cloudc_build_notification_js_buf(msg_type, serial, deviceid, userid, ImpPath, js_buf);
+    qcc::String TEXT1 = js_buf;
+    // Prepare text object, set language and text, add notification to vector
+    NotificationText textToSend1(LANG1, TEXT1);
+    //NotificationText textToSend2(LANG2, TEXT2);
+
+    std::vector<NotificationText> vecMessages;
+    vecMessages.push_back(textToSend1);
+    //vecMessages.push_back(textToSend2);
+
+/*    // Add variable parameters
+    std::map<qcc::String, qcc::String> customAttributes;
+    customAttributes[KEY1] = VAL1;
+    customAttributes[KEY2] = VAL2;
+
+    //Prepare Rich Notification Content
+    RichAudioUrl audio1(LANG1, URL1);
+    RichAudioUrl audio2(LANG2, URL2);
+
+    std::vector<RichAudioUrl> richAudioUrl;
+
+    richAudioUrl.push_back(audio1);
+    richAudioUrl.push_back(audio2);
+
+    qcc::String richIconUrl = RICH_ICON_URL;
+    qcc::String richIconObjectPath = RICH_ICON_OBJECT_PATH;
+    qcc::String richAudioObjectPath = RICH_AUDIO_OBJECT_PATH;
+    qcc::String controlPanelServiceObjectPath = CONTROL_PANEL_SERVICE_OBJECT_PATH;
+*/
+    // Send message 
+    Notification notification(messageType, vecMessages);
+   // notification.setCustomAttributes(customAttributes);
+   // notification.setRichIconUrl(richIconUrl.c_str());
+   // notification.setRichAudioUrl(richAudioUrl);
+   // notification.setRichIconObjectPath(richIconObjectPath.c_str());
+   // notification.setRichAudioObjectPath(richAudioObjectPath.c_str());
+   // notification.setControlPanelServiceObjectPath(controlPanelServiceObjectPath.c_str());
+
+    status = Sender->send(notification, 7200);
+    if (status != ER_OK) {
+        std::cout << "Notification was not sent successfully - exiting application" << std::endl;
+        cleanup();
+        return 1;
+    }
+
+    std::cout << "Notification sent! " << std::endl;
+    std::cout << "Hit Ctrl+C to exit the application" << std::endl;
+
+    //WaitForSigInt();
+
+    std::cout << "Exiting the application and deleting the busAttachment connection." << std::endl;
+    cleanup();
+
+    return 0;
+}

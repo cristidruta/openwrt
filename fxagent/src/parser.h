@@ -32,11 +32,15 @@ extern "C"
 #define MAX_DEVICEID_LEN 32
 #define MAX_DEVICESN_LEN 32
 #define MAX_USERID_LEN 32
+#define MAX_VERSION_LEN 32
+#define MAX_PLUGIN_URL_LIST_LEN 256
 
 #define NOT_EMPTY 0
 #define EMPTY -1
 #define MAX_RPC_CMD_LEN 32
-#define MAX_OPKG_UPDATE_URL_LEN 128
+#define MAX_OPKG_UPDATE_URL_LEN 256
+#define MAX_DEV_UPGRADE_URL_LEN 256
+#define MAX_MD5_LEN 128
 #define MAX_PLUGIN_VERSION_LEN  32
 
 #define MAX_IPK_NAME_LEN 32
@@ -53,6 +57,7 @@ typedef enum
     eAlljoynGetOperation,
     eAlljoynSetOperation,
     eAlljoynUpdateDeviceId,
+    eDevUpgrade,
     eInvalidParam
 }eOpType;
 
@@ -100,6 +105,9 @@ typedef struct http_value
     char device_sn[MAX_DEVICESN_LEN];
     char device_type[MAX_DEVICETYPE_LEN];  //temp add for alljoyn
     char *devData;
+    char    dev_upgrade_url[MAX_DEV_UPGRADE_URL_LEN];
+//    char version_id[MAX_VERSION_LEN];
+    char    MD5[MAX_MD5_LEN];
     /*char    returncode[8];//200 OK or 500 */
 }http_value;
 

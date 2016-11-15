@@ -465,9 +465,9 @@ start:
     }
 
 
-    /*devOnlineHandle();*/
+    devOnlineHandle();
 
-    /*WaitForSigInt();*/
+    WaitForSigInt();
 #ifdef TCP_PROXY_CTL_INTF
     if (pCtlIntf_init() < 0) {
         adapt_error("pCtlIntf_init() failed!");
@@ -476,8 +476,8 @@ start:
 
     pCtlIntf_loop();
 #endif
-
-#ifdef IP_DEV_CTL_SERVER
+#if 0
+//#ifdef IP_DEV_CTL_SERVER
     if (devMgmt_init() < 0) {
         adapt_error("devMgmt_init() failed!");
         return -1;

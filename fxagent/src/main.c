@@ -77,7 +77,6 @@ int ap_register(void)
     return -1;
 }
 
-//extern void iota_genHostStr(char *server);
 int config_init(int argc, char *argv[])
 {
     int i = 0;
@@ -145,7 +144,6 @@ int main(int argc, char *argv[])
     }
 #endif
     db_connect();
-
     config_init(argc, argv);
     cloudc_ubus_init();
 
