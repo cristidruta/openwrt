@@ -182,7 +182,7 @@ static int iota_sendHttpBuf(char *buf, int len)
 /* iota func end */
 
 int cloudc_build_register_js_buf(char *buf, int maxLen); 
-int cloudc_build_online_js_buf(char *js_buf, char *devData); 
+int cloudc_build_online_js_buf(char *js_buf, int maxLen, char *devData); 
 int cloudc_build_recv_rsp_js_buf(char *type, int serial, int rsp_status, char *js_buf);
 int cloudc_build_alljoyn_recv_rsp_js_buf(char *type, int serial, char *user_id, char *device_id, int rsp_status, char *js_buf);
 int cloudc_build_notification_js_buf(char *type, int serial, char *deviceId,char *versionId, char *path, char *js_buf);//add by whzhe
@@ -591,12 +591,13 @@ int cloudc_build_register_js_buf(char *buf, int maxLen)
     return ret;
 }
 
-int cloudc_build_online_js_buf(char *js_buf, char *devData)
+int cloudc_build_online_js_buf(char *buf, int maxLen, char *devData)
 {
     cJSON *json_root=NULL;
     cJSON *js_array=NULL, *js_body=NULL;
     cJSON *jsonDevData=NULL;
     char *s=NULL;
+    int ret = -1;
 
     cloudc_debug("Enter.");
 
@@ -624,9 +625,10 @@ int cloudc_build_online_js_buf(char *js_buf, char *devData)
     s = cJSON_PrintUnformatted(json_root);
     if (s)
     {
-        strncpy(js_buf, s, SEND_MAX_BUF_LEN - 1);
-        cloudc_debug("%s[%d]: create js_buf  is %s\n", __func__, __LINE__, js_buf);
-        free(s);
+        ret=snprintf(buf, maxLen, "%s", s);
+        buf[maxLen-1] = '\0';
+        cloudc_debug("ret=%d,buf=%s\n", ret, buf);
+        free(s);    
     }
     else
     {
@@ -635,9 +637,10 @@ int cloudc_build_online_js_buf(char *js_buf, char *devData)
 
     cJSON_Delete(json_root);
     cloudc_debug("Exit.");
-    return 0;
+    return ret;
 }
 
+/*gateway online to server*/
 int cloudc_send_register_buf(void)
 {   
 #if 0
@@ -682,8 +685,10 @@ int cloudc_send_register_buf(void)
     return 0;  
 }
 
+/*device online to server*/
 int cloudc_send_online_buf(char *devData)
 {
+#if 0
     char build_js_buf[SEND_MAX_BUF_LEN] = {0};
     char build_http_buf[SEND_MAX_BUF_LEN] = {0};
     int ret1 = -1;
@@ -702,6 +707,27 @@ int cloudc_send_online_buf(char *devData)
     }
 
     cloudc_debug("%s[%d]: Exit ", __func__, __LINE__);
+#endif
+    int conLen = -1;
+    char tcpBuf[SEND_MAX_BUF_LEN]={0};
+    cJSON * jsonDevData=NULL;
+
+    if ((conLen = cloudc_build_online_js_buf(&tcpBuf[FXAGENT_HEAD_LEN],
+                                          SEND_MAX_BUF_LEN - FXAGENT_HEAD_LEN,
+                                          devData) < 0))
+    {
+        cloudc_error("failed to build tcp body!");
+        return -1;
+    }
+
+    iota_addIoTHeader(tcpBuf, conLen);
+
+    iota_sendHttpBuf(tcpBuf, FXAGENT_HEAD_LEN+conLen);
+
+    cloudc_debug("Exit.");
+
+    return 0;  
+
 }
 
 int cloudc_build_notification_js_buf(char *type, int serial, char *deviceId,char *userId, char *path, char *js_buf)
