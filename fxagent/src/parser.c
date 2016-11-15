@@ -182,8 +182,8 @@ int cloudc_parse_http_body(char *json_buf)
     cJSON *p_array_item = NULL;
     AgentMsgType msgType;
 
-    cloudc_debug("%s[%d]: Enter.\r\n", __func__, __LINE__);
-    cloudc_debug("%s[%d]: json_buf = %s\r\n", __func__, __LINE__, json_buf);
+    cloudc_debug("Enter.");
+    cloudc_debug("json_buf=%s", json_buf);
 
     /* parse json_buf */
     json = cJSON_Parse(json_buf);  
@@ -215,11 +215,11 @@ int cloudc_parse_http_body(char *json_buf)
 
     /* json_type->type: cJSON_String
      * json_type->valuestring is not NULL   */
-    cloudc_debug("%s[%d]: type value = %s", __func__, __LINE__, json_type->valuestring);  
+    cloudc_debug("type value = %s", json_type->valuestring);  
 
     recvdata.rpc_flag = cloudc_get_type(json_type->valuestring);
     recv_status_count++;
-    cloudc_debug("%s[%d]: rpc_flag = %d", __func__, __LINE__, recvdata.rpc_flag);  
+    cloudc_debug("rpc_flag = %d",recvdata.rpc_flag);  
 
     /* TODO: need replace rpc.flag with msgType */
     msgType=agent_getMsgType(json_type->valuestring);
@@ -244,7 +244,7 @@ int cloudc_parse_http_body(char *json_buf)
     {  
         recvdata.serial_num = cloudc_get_serial_num(json_serial->valueint);
         recv_status_count++;
-        cloudc_debug("%s[%d]: serial number = %d", __func__, __LINE__, json_serial->valueint);  
+        cloudc_debug("serial number = %d",json_serial->valueint);  
     }  
     else
     {
@@ -480,29 +480,44 @@ int cloudc_parse_http_body(char *json_buf)
             json_action = cJSON_GetObjectItem(json, "action");  
             if (NULL == json_action)
             {
-                cloudc_debug("%s[%d]: failed to get plugin action from json", __func__, __LINE__);
+                cloudc_debug("failed to get plugin action from json");
             }
             else if (json_action->type == cJSON_String )   
             {  
                 recvdata.plugin_action_flag = cloudc_get_action_type(json_action->valuestring);
                 recv_status_count++;
-                cloudc_debug("%s[%d]: plugin_action_flag = %d", __func__, __LINE__, recvdata.plugin_action_flag); 
+                cloudc_debug("plugin_action_flag = %d",recvdata.plugin_action_flag); 
             }
             else
             {
-                cloudc_error("%s[%d]: update value is not int");
+                cloudc_error("update value is not int");
             }
 
-            memset(recvdata.pluginUrl, 0, sizeof(MAX_PLUGIN_URL_LIST_LEN));
-            memset(recvdata.pluginDeleteList, 0, sizeof(MAX_PLUGIN_URL_LIST_LEN));
+            json_deviceId = cJSON_GetObjectItem(json, "deviceId");  
+            if (NULL == json_deviceId)
+            {
+                cloudc_debug("failed to get deviceId from json");
+            }
+            else if (json_deviceId->type == cJSON_String )   
+            {  
+                recv_status_count++;
+                strncpy(recvdata.device_id, json_deviceId->valuestring, sizeof(recvdata.device_id) - 1);
+                cloudc_debug("recvdata.device_id = %s", json_deviceId->valuestring);  
+            }
+
+            struct plugin_info *head = NULL;
+            struct plugin_info *p_node = NULL;
 
             if (eDelete == recvdata.plugin_action_flag)
             {
+                cJSON *name = NULL;
+                cJSON *id = NULL;
+
                 delete_list = cJSON_GetObjectItem(json, "pluginDeleteList");
 
                 if (NULL == delete_list)
                 {
-                    cloudc_debug("%s[%d]: no delete plugin from json", __func__, __LINE__);
+                    cloudc_debug("no delete plugin from json");
                 }
                 else if (delete_list->type == cJSON_Array)
                 {
@@ -512,34 +527,55 @@ int cloudc_parse_http_body(char *json_buf)
                         recv_status_count++;
                         while (i < recvdata.real_ipk_num)
                         {
+                            struct plugin_info *node = (struct plugin_info *)malloc(sizeof(struct plugin_info));
                             p_array_item = cJSON_GetArrayItem(delete_list, i);
-                            array_item  = cJSON_Print(p_array_item); 
 
-                            strncat(recvdata.pluginDeleteList, &array_item[1], strlen(array_item)-2);
-                            strcat(recvdata.pluginDeleteList, ",");
+                            name = cJSON_GetObjectItem(p_array_item, "name");
+                            id = cJSON_GetObjectItem(p_array_item, "pluginId");
+
+                            node->pluginId = atoi(id->valuestring);
+                            strcpy(node->name, name->valuestring);
+
+                            cloudc_debug("name=%s, id=%d",node->name, node->pluginId);
+
+                            if (p_node == NULL)
+                            {
+                                p_node = node;
+                                head = node;
+                                node->next = NULL;
+                            }
+                            else
+                            {
+                                p_node->next = node;
+                                p_node = node;
+                                p_node->next = NULL;
+                            }
 
                             i++;
                         }
 
-                        strcat(recvdata.pluginDeleteList, "\0");
+                        recvdata.plugin_head = head;
 
                     }
-                    cloudc_debug("%s[%d]: pluginDeleteList=%s", __func__,__LINE__,recvdata.pluginDeleteList);
 
                 }
                 else
                 {
-                    cloudc_error("%s[%d]: wrong plugin list", __func__, __LINE__);
+                    cloudc_error("wrong plugin list");
                 }
 
             }
             else
             {
+                cJSON *url = NULL;
+                cJSON *id = NULL;
+                cJSON *version = NULL;
+
                 download_list = cJSON_GetObjectItem(json, "pluginDownloadList");
 
                 if (NULL == download_list)
                 {
-                    cloudc_debug("%s[%d]: no download url from json", __func__, __LINE__);
+                    cloudc_debug("no download url from json");
                 }
                 else if (download_list->type == cJSON_Array)
                 {
@@ -549,19 +585,38 @@ int cloudc_parse_http_body(char *json_buf)
                         recv_status_count++;
                         while (i < recvdata.real_ipk_num)
                         {
+                            struct plugin_info *node = (struct plugin_info *)malloc(sizeof(struct plugin_info));
                             p_array_item = cJSON_GetArrayItem(download_list, i);
-                            array_item  = cJSON_Print(p_array_item); 
 
-                            strncat(recvdata.pluginUrl, &array_item[1], strlen(array_item)-2);
-                            strcat(recvdata.pluginUrl, ",");
+                            url = cJSON_GetObjectItem(p_array_item, "url");
+                            id = cJSON_GetObjectItem(p_array_item, "pluginId");
+                            version = cJSON_GetObjectItem(p_array_item, "version");
+
+                            node->pluginId = atoi(id->valuestring);
+                            strcpy(node->url, url->valuestring);
+                            strcpy(node->version, version->valuestring);
+
+                            cloudc_debug("url=%s, version=%s, id=%d",node->url, node->version, node->pluginId);
+
+                            if (p_node == NULL)
+                            {
+                                p_node = node;
+                                head = node;
+                                node->next = NULL;
+                            }
+                            else
+                            {
+                                p_node->next = node;
+                                p_node = node;
+                                p_node->next = NULL;
+                            }
 
                             i++;
                         }
 
-                        strcat(recvdata.pluginUrl, "\0");
+                        recvdata.plugin_head = head;
 
                     }
-                    cloudc_debug("%s[%d]: pluginUrl=%s", __func__,__LINE__,recvdata.pluginUrl);
 
                 }
                 else
@@ -571,12 +626,11 @@ int cloudc_parse_http_body(char *json_buf)
 
             }
 
-            
-            if (4 == recv_status_count)
+            if (5 == recv_status_count)
             {
                 rsp_status = 1;
-                cloudc_send_recv_rsp_buf(recvdata.rpc_cmd, recvdata.serial_num, rsp_status);
-                cloudc_debug("%s[%d]: correct parameter, will continue to handle it", __func__, __LINE__);  
+                //cloudc_send_recv_rsp_buf(recvdata.rpc_cmd, recvdata.serial_num, rsp_status);
+                cloudc_debug("correct parameter, will continue to handle it");  
 
                 task_queue_enque(&queue_head, &recvdata);
 
@@ -584,8 +638,8 @@ int cloudc_parse_http_body(char *json_buf)
             else
             {
                 rsp_status = 0;
-                cloudc_send_recv_rsp_buf(recvdata.rpc_cmd, recvdata.serial_num, rsp_status);
-                cloudc_error("%s[%d]: wrong parameter, no need to handle it", __func__, __LINE__);
+                //cloudc_send_recv_rsp_buf(recvdata.rpc_cmd, recvdata.serial_num, rsp_status);
+                cloudc_error("wrong parameter, no need to handle it");
             }
 
             break;

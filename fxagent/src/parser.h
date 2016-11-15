@@ -37,7 +37,7 @@ extern "C"
 #define EMPTY -1
 #define MAX_RPC_CMD_LEN 32
 #define MAX_OPKG_UPDATE_URL_LEN 128
-#define MAX_PLUGIN_URL_LIST_LEN 1024
+#define MAX_PLUGIN_VERSION_LEN  32
 
 #define MAX_IPK_NAME_LEN 32
 #define MAX_NODE_VALUE_LEN 32
@@ -65,6 +65,15 @@ typedef enum
     eInvalidActionParam
 }eActionType;
 
+typedef struct plugin_info
+{
+    char url[MAX_OPKG_UPDATE_URL_LEN];
+    char name[MAX_IPK_NAME_LEN];
+    char version[MAX_PLUGIN_VERSION_LEN];
+    int pluginId;
+    struct plugin_info *next;
+}plugin_info;
+
 typedef struct ipk_info
 {
     char op_ipk_name[MAX_IPK_NAME_LEN];
@@ -84,8 +93,7 @@ typedef struct http_value
     int     real_ipk_num;
     char    rpc_cmd[MAX_RPC_CMD_LEN];
     char    opkg_update_url[MAX_OPKG_UPDATE_URL_LEN];
-    char    pluginUrl[MAX_PLUGIN_URL_LIST_LEN];
-    char    pluginDeleteList[MAX_PLUGIN_URL_LIST_LEN];
+    struct plugin_info *plugin_head;
     struct ipk_info *ipk_name_head;
     char user_id[MAX_USERID_LEN];
     char device_id[MAX_DEVICEID_LEN];

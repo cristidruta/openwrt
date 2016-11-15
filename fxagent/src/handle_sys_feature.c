@@ -43,7 +43,7 @@ char* get_plugin_name(char *url)
 
     while((p = strsep(&tmp, "/")) != NULL)
     {
-        if (NULL != strstr(p, "ipk"))
+        if (NULL != strstr(p, ".ipk"))
         {
             cloudc_debug("%s[%d]: plugin_name=%s", __func__, __LINE__, p);
             if ((p_underline = strchr(p, '_')) != NULL)
@@ -61,6 +61,30 @@ char* get_plugin_name(char *url)
 
     free(tmp);
 
+    return strdup(name);
+}
+
+char* get_file_name(char *ipk)
+{
+    char *tmp = strdup(ipk);
+    char *p_underline;
+    char name[32];
+
+    if (NULL != strstr(tmp, ".ipk"))
+    {
+        if ((p_underline = strchr(tmp, '_')) != NULL)
+        {
+            strncpy(name, tmp, p_underline-tmp);
+            name[p_underline-tmp] = '\0';
+        }
+        else
+        {
+            strncpy(name, tmp, strlen(tmp)-4);
+            name[strlen(tmp)-4] = '\0';
+        }
+    }
+
+    free(tmp);
     return strdup(name);
 }
 
@@ -82,7 +106,7 @@ void cloudc_rpc_method_handle(struct http_value recv_data)
             break;
 
         case ePluginOperation:
-            cloudc_manage_plugin(recv_data.rpc_cmd, recv_data.serial_num, recv_data.pluginUrl, recv_data.pluginDeleteList, recv_data.real_ipk_num, recv_data.plugin_action_flag);
+            cloudc_manage_plugin(recv_data.rpc_cmd, recv_data.serial_num, recv_data.plugin_head, recv_data.plugin_action_flag, recv_data.device_id);
             break;
 
         case eServiceOperation:
@@ -171,70 +195,60 @@ int cloudc_manage_opkg(char *op_type, int serial_num, int update_flag, char *url
     return 0;
 }
 
-int cloudc_manage_plugin(char *op_type, int serial_num, char *url, char *name, int real_ipk_num, int action_flag)
+int cloudc_manage_plugin(char *op_type, int serial_num, struct plugin_info *head, int action_flag, char *deviceId)
 {
     cloudc_debug("%s[%d]: Enter", __func__, __LINE__);
-    int download_status = -1;
-    char temp_ipk[128];
-    char action_list[MAX_PLUGIN_URL_LIST_LEN];
-    char *p_list;
-    int i = 0;
+    int status = -1;
+    struct plugin_info *node = head;
+    char *action = NULL;
+    int action_status = 0;
 
-    if (NULL == url)
+    while(head)
     {
-        cloudc_debug("%s[%d]: no need to replace opkg_conf file", __func__, __LINE__);
-        return 0;
-    }
+        node = head; 
 
-    if (eInstall == action_flag || eUpdate == action_flag)
-    {
-        strcpy(action_list, url);
-        p_list = action_list;
-    }
-    else
-    {
-        strcpy(action_list, name);
-        p_list = action_list;
-    }
-
-    for (i = 0; i < real_ipk_num; i++)
-    {
-        char *p_comma = strchr(p_list, ',');
-
-        if (NULL != p_comma)
+        if (eInstall == action_flag)
         {
-            memset(temp_ipk, 0, 128);
-            strncpy(temp_ipk, p_list, p_comma-p_list);
-            temp_ipk[p_comma-p_list] = '\0';
+            char *name = get_plugin_name(node->url);
 
-            if ( eInstall == action_flag)
-            {
-                cloudc_download_plugin(temp_ipk);
-                cloudc_install_plugin();
-            }
-            else if (eDelete == action_flag)
-            {
-                //char *name = get_plugin_name(temp_url);
-                cloudc_remove_plugin(temp_ipk);
-                free(name);
-            }
-            else if (eUpdate == action_flag)
-            {
-                char *name = get_plugin_name(temp_ipk);
+            cloudc_download_plugin(node->url);
+            status = cloudc_install_plugin(name);
+            free(name);
+            
+            action = strdup("install");
+            action_status = status;
+        }
+        else if (eUpdate == action_flag)
+        {
+            char *name = get_plugin_name(node->url);
 
-                cloudc_download_plugin(temp_ipk);
-                cloudc_remove_plugin(name);
-                cloudc_install_plugin();
-                free(name);
-            }
+            cloudc_download_plugin(node->url);
+            status = cloudc_remove_plugin(name);
+            status = cloudc_install_plugin(name);
+            free(name);
 
-            p_list = p_comma + 1;
+            action = strdup("update");
+            action_status = status;
+        }
+        else if (eDelete == action_flag)
+        {
+            char *name = get_file_name(node->name);
+
+            status = cloudc_remove_plugin(name);
+            free(name);
+
+            action = strdup("delete");
+            action_status = status ? 0 : 1;
         }
 
+        cloudc_debug("action=%s,ret=%d,deviceId=%s,pluginId=%d,version=%s",action,action_status,deviceId,node->pluginId,node->version);
+        cloudc_send_rsp_plugin_buf(op_type, serial_num, action, action_status, deviceId, node->pluginId, node->version);
+
+        head = node->next;
+        free(node);
+        free(action);
     }
 
-
-    //cloudc_send_rsp_opkg_buf(op_type, serial_num, update_status, replace_status);
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
     return 0;
 }
@@ -628,9 +642,9 @@ int cloudc_download_plugin(char *download_url)
     }
 }
 
-int cloudc_install_plugin(void)
+int cloudc_install_plugin(char *ipk_name)
 {
-    //int check_result = -1;
+    int check_result = -1;
     char temp_buffer[128];
 
     cloudc_debug("%s[%d]: Enter", __func__, __LINE__);
@@ -640,14 +654,16 @@ int cloudc_install_plugin(void)
     strcpy(temp_buffer, "opkg install /etc/download.ipk");
     system(temp_buffer);
 
+    check_result = check_plugin_installed(ipk_name);
+
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
 
-    return 0;
+    return check_result;
 }
 
 int cloudc_remove_plugin(char *ipk_name)
 {
-    //int check_result = -1;
+    int check_result = -1;
     char temp_buffer[128];
 
     cloudc_debug("%s[%d]: Enter", __func__, __LINE__);
@@ -658,9 +674,11 @@ int cloudc_remove_plugin(char *ipk_name)
     strcat(temp_buffer, ipk_name);
     system(temp_buffer);
 
+    check_result = check_plugin_installed(ipk_name);
+
     cloudc_debug("%s[%d]: Exit", __func__, __LINE__);
 
-    return 0;
+    return check_result;
 }
 
 int cloudc_install_ipk(char *ipk_name)
@@ -888,6 +906,43 @@ int check_ipk_installed(char *ipk_name)
     }
     fclose(fstream);
     cloudc_debug("%s[%d]: ipk not installed", __func__, __LINE__);
+    return 1;
+}
+
+int check_plugin_installed(char *ipk_name)
+{
+    FILE *fstream;
+    char temp_string[50];
+    char list_plugin[64];
+
+    memset(list_plugin, 0, 64);
+
+    strcpy(list_plugin, "opkg list-installed | grep ");
+    strcat(list_plugin, ipk_name);
+    strcat(list_plugin, " > /tmp/customer_ipk_list");
+
+    system(list_plugin);
+
+    fstream = fopen("/tmp/customer_ipk_list", "r");
+    if (fstream==NULL)
+    {
+        cloudc_debug("%s[%d]: fail to open customer_ipk_list", __func__, __LINE__);
+        return -1;
+    }
+
+    cloudc_debug("ipk_name is %s", ipk_name);
+    while(fgets(temp_string, 50, fstream) != NULL)
+    {
+        cloudc_debug("temp_string is %s",temp_string);
+        if(NULL != strstr(temp_string, ipk_name))
+        {
+            cloudc_debug("ipk installed");
+            fclose(fstream);
+            return 0;
+        }
+    }
+    fclose(fstream);
+    cloudc_debug("ipk not installed");
     return 1;
 }
 

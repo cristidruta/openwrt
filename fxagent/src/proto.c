@@ -173,6 +173,7 @@ int cloudc_build_alljoyn_recv_rsp_js_buf(char *type, int serial, char *user_id, 
 int cloudc_build_rsp_ipk_js_buf(char *type, int serial, struct ipk_info *ipk_list_head, int *status, int real_ipk_num, char *js_buf);
 int cloudc_build_rsp_query_js_buf(char *type, int serial, struct ipk_query_info_node *query_list_head, char *js_buf);
 int cloudc_build_rsp_opkg_js_buf(char *type, int serial, int update_status, int replace_status, char *js_buf);
+int cloudc_build_rsp_plugin_js_buf(char *type, int serial, char *action, int ret, char *deviceId, int pluginId, char *plugin_version, char *js_buf);
 int cloudc_build_rsp_get_js_buf(char *type, int serial, char *user_id, char *device_id, char *device_type, struct ipk_info *config_info_head, int key_name_num, char *js_buf); 
 int cloudc_build_rsp_set_js_buf(char *type, int serial, char *user_id, char *device_id, char *devData, int retCode, char *js_buf);
 int cloudc_build_send_http_buf(char *js_buf, char *http_buf);
@@ -786,6 +787,72 @@ int cloudc_send_alljoyn_recv_rsp_buf(char *type, int serial, char *user_id, char
 
     cloudc_debug("%s[%d]: Exit ", __func__, __LINE__);
     return ret1;
+}
+
+int cloudc_send_rsp_plugin_buf(char *type, int serial, char *action, int action_status, char *deviceId, int pluginId, char *plugin_version)
+{
+    char build_js_buf[SEND_MAX_BUF_LEN] = {0};
+    char build_http_buf[SEND_MAX_BUF_LEN] = {0};
+    int ret1 = -1;
+    
+    cloudc_debug("Enter ");
+
+    ret1 = cloudc_build_rsp_plugin_js_buf(type, serial, action, action_status, deviceId, pluginId, plugin_version, build_js_buf);
+
+    if (0 == ret1)
+    {
+        cloudc_build_send_http_buf(build_js_buf, build_http_buf);
+        cloudc_debug("build_js_buf = %s, \nbuild_http_buf = %s",build_js_buf, build_http_buf);
+
+        cloudc_send_http_buf(build_http_buf);
+    }
+    return ret1;
+}
+
+int cloudc_build_rsp_plugin_js_buf(char *type, int serial, char *action, int action_status, char *deviceId, int pluginId, char *plugin_version, char *js_buf)
+{
+    cJSON *json_root;
+    /*create json string root*/
+    json_root = cJSON_CreateObject();
+
+    char rsp_type[30] = {0};
+    snprintf(rsp_type, sizeof(rsp_type), "rsp_%s", type);
+
+    if (!json_root) 
+    {   
+        cloudc_debug("get json_root faild !");
+        goto EXIT;
+    }   
+    else 
+    {   
+        cloudc_debug("get json_root success!");
+    }   
+
+    cJSON_AddStringToObject(json_root, "type", rsp_type); 
+    cJSON_AddNumberToObject(json_root, "commandId", serial); 
+    cJSON_AddStringToObject(json_root, "action", action); 
+    cJSON_AddStringToObject(json_root, "deviceId", deviceId); 
+    cJSON_AddNumberToObject(json_root, "pluginId", pluginId); 
+    cJSON_AddNumberToObject(json_root, "ret", action_status); 
+
+    if (0 != strcasecmp("delete", action))
+    {
+        cJSON_AddStringToObject(json_root, "version", plugin_version); 
+    }
+
+    char *s = cJSON_PrintUnformatted(json_root);
+    if (s)
+    {
+        strncpy(js_buf, s, SEND_MAX_BUF_LEN - 1);
+        cloudc_debug("create js_buf  is %s\n",js_buf);
+        free(s);
+    }
+    cJSON_Delete(json_root);
+
+    return 0;
+EXIT:
+    return -1;
+
 }
 
 int cloudc_send_rsp_opkg_buf(char *type, int serial, int update_status, int replace_status)
