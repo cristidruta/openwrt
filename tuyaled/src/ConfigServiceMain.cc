@@ -295,8 +295,8 @@ int devOnlineHandle()
             {
                 adapt_error("sqlUpdateDevData failed!");
             }
-            status = aboutObjApi->Announce();
         }
+        status = aboutObjApi->Announce();
         std::cout << "Announce succ" << std::endl;
 
         /* above part is aboutData init, used for offline and 1st online */
