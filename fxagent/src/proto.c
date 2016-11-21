@@ -46,13 +46,12 @@ static int g_hostHdrLen=-1;
 
 static int iota_addIoTHeader(char *buf, int conLen)
 {
-    struct fxIoT_head head;
-    memset(&head, 0, sizeof(struct fxIoT_head));
+    struct fxIoT_head *head = (struct fxIoT_head *)buf;
+    memset(head, 0, sizeof(struct fxIoT_head));
 
-    head.length = conLen;
+    head->length = htons(conLen);
 
-    strncpy(buf, &head, FXAGENT_HEAD_LEN);
-    *(buf + FXAGENT_HEAD_LEN + conLen) = '\0';
+    cloudc_debug("head data:%x",*head);
 
     return 0;
 }
