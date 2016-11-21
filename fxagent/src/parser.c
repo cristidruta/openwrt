@@ -109,13 +109,10 @@ int cloudc_parse_http_header(char *recvbuf)
         return 0;
     }
 
-    struct fxIoT_head head;
+    struct fxIoT_head *head = (struct fxIoT_head *)recvbuf;
     int len = 0;
 
-    memset(&head, 0, sizeof(struct fxIoT_head));
-    memcpy(&head, recvbuf, sizeof(struct fxIoT_head));
-
-    len = head.length;
+    len = head->length;
     cloudc_debug("data_len:%d", len);
 
     if (len > 0)
