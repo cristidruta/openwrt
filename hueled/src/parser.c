@@ -44,6 +44,7 @@ int parseManufactureSN(char *jsonBuf,char *devSn)
         }
 
     }
+    cJSON_Delete(json);  
 }
 int parseDevPower(char *jsonBuf, char *power)
 {
@@ -77,6 +78,7 @@ int parseDevPower(char *jsonBuf, char *power)
         }
 
     }
+    cJSON_Delete(json);  
 }
 
 

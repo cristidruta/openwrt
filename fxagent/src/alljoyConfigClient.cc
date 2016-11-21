@@ -275,6 +275,7 @@ void insertSessionInfo(char *interfaceName, const char *busName, SessionPort por
             {
                 std::cout << "WARNING - JoinSession failed: " << QCC_StatusText(status) << std::endl;
             }
+            std::cout << "SessionId = "<< node->sessionId;
         }
         else
         {
@@ -283,7 +284,7 @@ void insertSessionInfo(char *interfaceName, const char *busName, SessionPort por
             list = (interfaceNamelist *)malloc(sizeof(interfaceNamelist));
             tmp = (interfaceNamelist *)malloc(sizeof(interfaceNamelist));
 
-            if (node != NULL && tmp != NULL && tmp != NULL)
+            if (node != NULL && list != NULL && tmp != NULL)
             {
                 node = findBusName(busName);
                 strncpy(tmp->interfaceName, interfaceName, sizeof(tmp->interfaceName));
@@ -292,15 +293,22 @@ void insertSessionInfo(char *interfaceName, const char *busName, SessionPort por
                 {
                     list = list->next;
                 }
-
-                tmp->next = NULL;
+                // if (list == NULL){
+                tmp->next =NULL;
                 list->next = tmp;
-                std::cout << "don't need to JoinSession" << std::endl;
+                   //   }
             }
+               std::cout << "don't need to JoinSession" << std::endl;
         }
     }
     else
     {
+        if((node = findBusName(busName)) == NULL)
+        {
+            node = findSessionInfo(interfaceName);
+            strncpy(node->busName, busName , sizeof (node->busName));
+            cloudc_debug("change the busName");
+        }
         cloudc_debug("interface[%s] had exsited", interfaceName);
     }
 
@@ -606,22 +614,26 @@ int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg a
             strncpy(interfaceName, deviceInterfaceName, MAX_INTERFACE_LEN - 1);
             insertSessionInfo(interfaceName, busName, port);
 
+
             std::set<qcc::String>::iterator searchIterator = handledAnnouncements.find(qcc::String(interfaceName));
             if(searchIterator == handledAnnouncements.end())
             {
                 printf("online 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ interfaceName = %s\n", interfaceName);
-                char devData[MAX_DEVDATA_LEN] = {0};
+            //    char devData[MAX_DEVDATA_LEN] = {0};
 
                 handledAnnouncements.insert(interfaceName);
-#if 0
-                ParseGetAboutDataArg(aboutDataArg, devData);
-#endif
+
+
                 /* not get devData from aboutData, just get it from the database */
-                getDevDataByObj(interfaceName, devData);
-                cloudc_send_online_buf(devData); //need to add device_id as arg here
+              //  getDevDataByObj(interfaceName, devData);
+              //  cloudc_send_online_buf(devData); //need to add device_id as arg here
 
                 /* need to update devData in alljoynxml.conf start */
                 /* need to update devData in alljoynxml.conf end */
+            
+            char devData[MAX_DEVDATA_LEN] = {0};
+            getDevDataByObj(interfaceName, devData);
+            cloudc_send_online_buf(devData); //need to add device_id as arg here
             }
         }
 
@@ -631,6 +643,8 @@ int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg a
          * if not online on the dataLib, (and this is its first time to online,) then need to send this info to FEIXUN server.
          * */
     }
+//    char DeviceId[128] = {0};
+//    ParseGetAboutDataArg(aboutDataArg, DeviceId);
     return 0;
 }
 
@@ -660,7 +674,7 @@ int ParseGetAboutDataArg(ajn::MsgArg aboutDataArg, char *devData)
         }
 
         /* add by gaojing for DevData*/
-        if(strcmp(tempKey, "DevData") == 0)
+        if(strcmp(tempKey, "DeviceId") == 0)
         {
             std::cout << "tempKey = " << tempKey << std::endl;
             std::cout << "tempValue = " << tempValue << std::endl;
@@ -716,6 +730,8 @@ void UpdateConfig(qcc::String const& busName, unsigned int id, const char *inter
 
     AboutObjectDescription objectDescription;
     objectDescription.CreateFromMsgArg(objArg);
+ //   getObjStatusByIfName(char *onlineStatus, char *interfaceName);
+//void getObjInfoByDevId(char *deviceId, char *interfaceName, char *objectPath, char *onlineStatus)
 
     bool isConfigInterface = false;
     if (!s_interrupt) {
@@ -934,7 +950,7 @@ int configClientMain(char *interfaces, char *matchObjectPath, int msgType, char 
         cloudc_error("interface [%s] don't exist");
         return -1;
     }
-
+    cloudc_debug("sessionId = %s", node->sessionId);
     UpdateConfig(node->busName, node->sessionId, interfaceName, objectPath, getMsgType, getDevData);
 #if 0
     node = (sessionInfo *)malloc(sizeof(sessionInfo));

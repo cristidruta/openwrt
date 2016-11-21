@@ -1,7 +1,7 @@
 #!/bin/sh /etc/rc.common
 
-START=99
-STOP=99
+START=70
+STOP=70
 
 SERVICE_DAEMONIZE=1
 SERVICE_WRITE_PID=1
@@ -12,7 +12,7 @@ run_global()
     config_get_bool enable $1 enable
     if [ "$enable" -eq "1" ]; then
         echo $enable
-        fxagent& 
+        fxagent 172.17.60.148:4001 & 
         echo "fxagent enabled." >/dev/console  
     else
         echo $enable

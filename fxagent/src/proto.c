@@ -46,13 +46,15 @@ static int g_hostHdrLen=-1;
 
 static int iota_addIoTHeader(char *buf, int conLen)
 {
-    struct fxIoT_head head;
-    memset(&head, 0, sizeof(struct fxIoT_head));
+    struct fxIoT_head *head = (struct fxIoT_head*)buf;
+    memset(head, 0, sizeof(struct fxIoT_head));
 
-    head.length = conLen;
+    head->length = htons(conLen);
 
-    strncpy(buf, &head, FXAGENT_HEAD_LEN);
-    *(buf + FXAGENT_HEAD_LEN + conLen) = '\0';
+    //strncpy(buf, &head, FXAGENT_HEAD_LEN);
+    //*(buf + FXAGENT_HEAD_LEN + conLen) = '\0';
+
+    cloudc_debug("head=%x", *head);
 
     return 0;
 }
@@ -85,7 +87,7 @@ static int iota_addHttpHeader(char *buf, int conLen)
 
 /* success: return http body length 
  * failure: return -1 */
-static int iota_buildSetRspData(char *buf, int maxLen, int cmdId, int retCode, cJSON *jsonDevData)
+static int iota_buildSetRspData(char *buf, int maxLen, int cmdId,char *g_devId, int retCode, cJSON *jsonDevData)
 {
     int ret=-1;
     cJSON *jsonRoot=NULL;
@@ -395,6 +397,7 @@ int cloudc_send_rsp_set_buf(char *type, int cmdId, char *user_id, char *device_i
     if ((conLen=iota_buildSetRspData(&httpBuf[FXAGENT_HEAD_LEN],
                                      SEND_MAX_BUF_LEN-FXAGENT_HEAD_LEN,
                                      cmdId,
+                                     device_id,
                                      retCode,
                                      jsonDevData)) < 0)
     {
@@ -714,7 +717,7 @@ int cloudc_send_online_buf(char *devData)
 
     if ((conLen = cloudc_build_online_js_buf(&tcpBuf[FXAGENT_HEAD_LEN],
                                           SEND_MAX_BUF_LEN - FXAGENT_HEAD_LEN,
-                                          devData) < 0))
+                                          devData)) < 0)
     {
         cloudc_error("failed to build tcp body!");
         return -1;

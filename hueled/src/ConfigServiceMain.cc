@@ -205,8 +205,13 @@ int devOnlineHandle(char *manufactureSN, char *name, char *power, char *bright, 
         aboutDataStore = new AboutDataStore(factoryConfigFile.c_str(), configFile.c_str());
         aboutDataStore->Initialize();
 
+        char Manufacture[64] = {0};
+
+
         status = aboutDataStore->SetAppId(appId, 16);
-        if (status != ER_OK) {
+        if (status !=ER_OK)
+//        if ( ER_OK != aboutDataStore->SetAppId(appId, 16) || ER_OK != aboutDataStore->SetManufacturer(Manufacture, manufacture) || ER_OK != aboutDataStore->SetDeviceId(manufactureSN))
+        {
             std::cout << "Could not fill aboutDataStore." << std::endl;
             cleanup();
             return 1;
@@ -310,8 +315,9 @@ int devOnlineHandle(char *manufactureSN, char *name, char *power, char *bright, 
             {
                 adapt_error("sqlUpdateDevData failed!");
             }
-            status = aboutObjApi->Announce();
+        //    status = aboutObjApi->Announce();
         }
+        status = aboutObjApi->Announce();
         std::cout << "Announce succ" << std::endl;
 
         /* above part is aboutData init, used for offline and 1st online */
