@@ -34,15 +34,14 @@ endef
 define Package/fxagent/postinst
 #!/bin/sh
 /etc/init.d/fxagent enable
-/etc/init.d/fxagent restart
+/etc/init.d/fxagent start
 rm -rf /tmp/luci-*
-/usr/bin/fxagent 172.17.60.148:4001 &
 endef
 
 define Package/fxagent/postrm
 #!/bin/sh
 rm -rf /tmp/luci-*
-killall -kill fxagent
+killall -9 fxagent
 endef
 
 define Build/Compile

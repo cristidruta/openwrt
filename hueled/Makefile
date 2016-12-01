@@ -32,12 +32,12 @@ endef
 define Package/hueled/postinst
 #!/bin/sh
 /etc/init.d/hueled enable
-/usr/bin/hueled &
+/etc/init.d/hueled start
 endef
 
 define Package/hueled/postrm
 #!/bin/sh
-killall -kill hueled
+killall -9 hueled
 endef
 
 define Build/Compile

@@ -5,7 +5,7 @@ STOP=99
 
 start() 
 {
-    /usr/bin/hueled
+    /usr/bin/hueled &
 }
 
 stop()

@@ -29,5 +29,5 @@ start()
 
 stop()
 {
-    echo ...
+    killall -9 fxagent
 }
