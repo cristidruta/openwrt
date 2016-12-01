@@ -29,6 +29,17 @@ define Build/Prepare
 	$(CP) ./src/* $(PKG_BUILD_DIR)/ -r
 endef
 
+define Package/hueled/postinst
+#!/bin/sh
+/etc/init.d/hueled enable
+/usr/bin/hueled &
+endef
+
+define Package/hueled/postrm
+#!/bin/sh
+killall -kill hueled
+endef
+
 define Build/Compile
 	$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR)
 endef
@@ -36,8 +47,9 @@ endef
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hueled $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ConfigService.conf $(1)/usr/bin/hueled.conf
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ConfigService.conf $(1)/usr/bin/Philipsled.conf
 	$(INSTALL_DIR) $(1)/usr/lib
+	$(CP) ./files/* $(1)/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

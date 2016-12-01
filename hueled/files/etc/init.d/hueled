@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=99
+
+start() 
+{
+    /usr/bin/hueled
+}
+
+stop()
+{
+    pid_value=`pidof hueled`
+    kill -9 $pid_value > /dev/null 2>&1
+}

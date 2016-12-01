@@ -36,6 +36,7 @@ define Package/fxagent/postinst
 /etc/init.d/fxagent enable
 /etc/init.d/fxagent restart
 rm -rf /tmp/luci-*
+/usr/bin/fxagent 172.17.60.148:4001 &
 endef
 
 define Package/fxagent/postrm
