@@ -259,13 +259,15 @@ QStatus AboutDataStore::Update(const char* name, const char* languageTag, const 
         char* yval = NULL;
         status = value->Get("s", &yval);
         MsgArg arg("s", yval);
-        std::cout << "yval = " << yval << std::endl;
+        //std::cout << "yval = " << yval << std::endl;
+        adapt_debug("yval = %s", yval);
 
         ajn::MsgArg* argDev;
         GetField("DevData", argDev);
         argDev->Get("s", &devDataConf);
 
-        std::cout << "devDataConf = " << devDataConf << std::endl;
+        //std::cout << "devDataConf = " << devDataConf << std::endl;
+        adapt_debug("devDataConf = %s", devDataConf);
         if(0 == strcmp(devDataConf, ""))
         {
             adapt_debug("need to set default devData on alljoynConf\n");
@@ -312,7 +314,8 @@ QStatus AboutDataStore::Update(const char* name, const char* languageTag, const 
 
                 adapt_debug("Use cmd to call the Philips led!");
                 snprintf(cmd, sizeof(cmd), ledCmdFmt, ledState, ledNo);
-                std::cout << "cmd = " << cmd << std::endl;
+                //std::cout << "cmd = " << cmd << std::endl;
+                adapt_debug("cmd = %s", cmd);
                 system(cmd);
                 adapt_debug("config Philips end!\n");
             }

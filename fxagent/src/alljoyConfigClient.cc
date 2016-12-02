@@ -615,13 +615,19 @@ int CheckIfConfigInterfaceOnline(ajn::MsgArg objectDescriptionArg, ajn::MsgArg a
             insertSessionInfo(interfaceName, busName, port);
 
 
-            std::set<qcc::String>::iterator searchIterator = handledAnnouncements.find(qcc::String(interfaceName));
+            char businterfaceName[MAX_INTERFACE_LEN] = {0};
+            strncpy(businterfaceName, busName, MAX_INTERFACE_LEN-1);
+            strncat(businterfaceName,interfaceName, MAX_INTERFACE_LEN-1);
+
+            printf("businterfaceName = %s", businterfaceName);
+
+            std::set<qcc::String>::iterator searchIterator = handledAnnouncements.find(qcc::String(businterfaceName));
             if(searchIterator == handledAnnouncements.end())
             {
-                printf("online 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ interfaceName = %s\n", interfaceName);
+                printf("online 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ interfaceName = %s\n", businterfaceName);
             //    char devData[MAX_DEVDATA_LEN] = {0};
 
-                handledAnnouncements.insert(interfaceName);
+                handledAnnouncements.insert(businterfaceName);
 
 
                 /* not get devData from aboutData, just get it from the database */
