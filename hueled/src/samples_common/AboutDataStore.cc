@@ -295,13 +295,13 @@ QStatus AboutDataStore::Update(const char* name, const char* languageTag, const 
                 char ledState[16]={0};
                 char power[16]={0};
                 char cmd[512]={0};
-                char *ledCmdFmt="curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":%s}' http://192.168.1.174/api/8U4yimTSe3jv0zBDhw7XwrIwN495AKVWW2RgdFRM/lights/%d/state &";
+                char *ledCmdFmt="curl -s -H \"Accept: application/json\" -X PUT --data '{\"on\":%s}' http://192.168.1.138/api/ndHfTCn7TEUA2ZlBncb8i8mCmjaTD5w3FQCSj5il/lights/%d/state &";
 
                 if (0 == strcmp(devSn, FmanufactureSN)){
-                    ledNo = 1;
+                    ledNo = 2;
                 }
                 else if (0 == strcmp(devSn, SmanufactureSN)){
-                    ledNo = 2;
+                    ledNo = 1;
                 }
 
                 parseDevPower(yval, power);
